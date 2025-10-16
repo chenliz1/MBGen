@@ -71,7 +71,7 @@ steps: 350000
 lr: 0.001
 warmup_steps: 15000
 weight_decay: 0.005
-batch_size: 4096
+batch_size: 16384
 eval_batch_size: 32
 patience: 10
 auto_save_epochs: 5
