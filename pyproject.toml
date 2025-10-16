@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "mbgen"
+version = "0.1.0"
+description = ""
+authors = ["Lucas Chen <lchen@movableink.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.15"
+torch = "^2.9.0"
+transformers = "=4.41.2"
+numpy = "^2.3.4"
+scikit-learn = "^1.7.2"
+tqdm = "^4.67.1"
+sentence-transformers = "^5.1.1"
+datasets = "^4.2.0"
+accelerate = "^1.10.1"
+tensorboard = "^2.20.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
