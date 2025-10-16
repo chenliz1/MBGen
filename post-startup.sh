@@ -28,4 +28,9 @@ echo "Installing dependencies into the system environment..."
 poetry config virtualenvs.create false
 poetry install --no-root
 
+# 5. Download paper datasets
+cd /content/MBGen/data/raw_dataset
+gdown --folder https://drive.google.com/drive/folders/1G7tvIT1wvGZC2GmI-8Okbn9HrGQnNbfu?usp=sharing
+
+cd /content/MBGen
 echo "Post-startup setup complete."
