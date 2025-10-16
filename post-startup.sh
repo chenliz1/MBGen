@@ -31,8 +31,12 @@ poetry install --no-root
 # 5. Download paper datasets
 cd /content/MBGen/data/raw_dataset
 gdown --folder https://drive.google.com/drive/folders/1G7tvIT1wvGZC2GmI-8Okbn9HrGQnNbfu?usp=sharing
+
 cp '/content/MBGen/data/raw_dataset/MBSR datasets/retail.txt' /content/MBGen/data/raw_dataset/
+
 cp '/content/MBGen/data/raw_dataset/MBSR datasets/ijcai.txt' /content/MBGen/data/raw_dataset/
+
+rm -r '/content/MBGen/data/raw_dataset/MBSR datasets'
 
 cd /content/MBGen
 echo "Post-startup setup complete."
