@@ -2,7 +2,7 @@ import os
 from tqdm import tqdm
 import numpy as np
 from transformers import T5Config,T5ForConditionalGeneration
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 import torch
 from torch.utils.data import Dataset
 from transformers.optimization import get_scheduler
@@ -61,8 +61,16 @@ class TIGERTrainer(object):
         else:
             self.behavior_token = True
         self.reverse_bt = trainer_config['reverse_bt']
+        self.sample_ratio = trainer_config['sample_ratio']
         
     def train(self, train_dataset, validation_dataset, validation_all_dataset):
+        
+        if self.sample_ratio < 1.0:
+            dataset_size = len(train_dataset)
+            sample_size = int(dataset_size * self.sample_ratio)
+            indices = np.random.choice(dataset_size, sample_size, replace=False)
+            train_dataset = Subset(train_dataset, indices)
+            print(f"Downsampled training dataset from {dataset_size} to {sample_size} samples (ratio: {self.sample_ratio})")
         
         train_dataloader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4)
         validation_dataloader = DataLoader(validation_dataset, batch_size=self.eval_batch_size, shuffle=False, num_workers=4)

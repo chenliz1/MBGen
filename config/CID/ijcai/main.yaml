@@ -45,16 +45,17 @@ n_positions: 50
 
 #trainer:
 exp_id: "CID_ijcai"
-steps: 350000
+steps: 250000 # Initial was 350000
 lr: 0.0012
 warmup_steps: 15000
 weight_decay: 0.005
 batch_size: 512
-eval_batch_size: 32
+eval_batch_size: 256 # Initial was 32
 patience: 10
 auto_save_epochs: 5
 epochs_per_eval: 1
 epochs_per_all_eval: 1
 decoder_input: [0,1] # 0: BOS, 1: target behavior token
+sample_ratio: 0.5
     
     
