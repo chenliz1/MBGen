@@ -45,7 +45,7 @@ n_positions: 50
 
 #trainer:
 exp_id: "CID_retail"
-steps: 150000 # Initial was 350000
+steps: 100000 # Initial was 350000
 lr: 0.001
 warmup_steps: 15000
 weight_decay: 0.005
