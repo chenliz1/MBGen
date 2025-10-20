@@ -45,15 +45,15 @@ n_positions: 50
 
 #trainer:
 exp_id: "CID_retail"
-steps: 35000 # Initial was 350000
+steps: 87500 # Initial was 350000
 lr: 0.001
 warmup_steps: 15000
 weight_decay: 0.005
-batch_size: 512
+batch_size: 1024
 eval_batch_size: 32 # Initial was 32
 patience: 10
 auto_save_epochs: 5
-epochs_per_eval: 3 # Initial was 1
-epochs_per_all_eval: 5 # Initial was 1
+epochs_per_eval: 1 # Initial was 1
+epochs_per_all_eval: 32 # Initial was 1
 decoder_input: [0,1] # 0: BOS, 1: target behavior token
-sample_ratio: 0.1
+sample_ratio: 0.25
