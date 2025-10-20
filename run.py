@@ -189,4 +189,4 @@ if __name__ == '__main__':
 
         manage_training(configs, args.device, training_data, validation_data, test_data, validation_data_all, test_data_all)
     else:
-        start_training(config, training_data, validation_data, test_data, validation_data_all, test_data_all, f'cuda:{args.device[0]}')
+        start_training(config, training_data, validation_data, test_data, validation_data_all, test_data_all, f'cuda:{args.device[0]}', multiGPU=args.multiGPU, device_ids=[int(d) for d in args.device])
