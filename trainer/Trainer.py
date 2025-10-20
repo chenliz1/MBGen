@@ -22,6 +22,7 @@ class TIGERTrainer(object):
         self.optimizer = AdamW(model.parameters(), lr=self.learning_rate, weight_decay=trainer_config['weight_decay'])
         self.model = model
         self.device = trainer_config['device']
+        self.is_data_parallel = isinstance(model, torch.nn.DataParallel)
         model.to(trainer_config['device'])
         self.scheduler = get_scheduler(
         name="cosine",
