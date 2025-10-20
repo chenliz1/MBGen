@@ -26,16 +26,16 @@ behavior_injection: True
 behavior_embedding_dim: 64
 num_positions: 4
 num_behavior: 4
-num_layers: 4
-num_decoder_layers: 4
+num_layers: 4 # initial was 4
+num_decoder_layers: 4 # initial was 4
 num_sparse_encoder_layers: 4
 num_sparse_decoder_layers: 4
 sparse_layers_encoder: []
 sparse_layers_decoder: [0, 1, 2, 3]
 behavior_injection_encoder: [0, 1]
 behavior_injection_decoder: [0, 1]
-d_model: 256
-d_ff: 512
+d_model: 128 # initial was 256
+d_ff: 256 # initial was 512
 num_heads: 6
 d_kv: 64
 dropout_rate: 0.0
