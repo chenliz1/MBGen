@@ -92,7 +92,7 @@ class TIGERTrainer(object):
                 labels = batch['labels'].to(self.device).to(torch.long)
                 with autocast():
                     outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-                    loss = torch.mean(outputs.loss)
+                    loss = outputs.loss if isinstance(outputs.loss, torch.Tensor) and outputs.loss.dim() == 0 else torch.mean(outputs.loss)
                 # Scale the loss as necessary
                 self.scaler.scale(loss).backward()
                 clip_grad_norm_(self.model.parameters(), 1.0)
