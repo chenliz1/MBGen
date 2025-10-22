@@ -6,7 +6,8 @@ from collections import defaultdict
 
 BEHAVIOR_MAP = {"retail":{'buy': 0, 'pv': 1, 'fav': 2, 'cart': 3},\
                 "ijcai":{'buy': 0, 'pv': 1, 'fav': 2, 'cart': 3},\
-                "yelp":{'pos': 0, 'neg': 1, 'neutral': 2, 'tip': 3}}
+                "yelp":{'pos': 0, 'neg': 1, 'neutral': 2, 'tip': 3},\
+                "customized":{'buy': 0, 'pv': 1}}
 
 def split_history(input_list, max_seq_len = 50):
     sequences = []
