@@ -33,7 +33,7 @@ def create_directory_if_not_exists(path):
         os.makedirs(path)
 
 def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw_dataset"), output_path = os.path.join("..", "processed"), MBHT = False, interaction = False):
-    if dataset not in ["retail", "ijcai", "yelp"]:
+    if dataset not in ["retail", "ijcai", "yelp", "customized"]:
         raise ValueError("Wrong Argument")
     data = []
     user_sequence_map = defaultdict(list)
