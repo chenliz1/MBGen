@@ -14,10 +14,34 @@ def split_history(input_list, max_seq_len = 50):
     n = len(input_list)
     max_seq_len = min(max_seq_len, n - 1)
 
+    # if len(input_list) > max_seq_len + 2:
+    #     input_list = input_list[-(max_seq_len + 2):]  # keep last max_seq_len + 2 interactions
+
+    # # loop for train
+    # for end_index in range(1, len(input_list) - 2):
+    #     sequence = input_list[:end_index]
+    #     next_item = input_list[end_index]
+    #     sequences.append((sequence, next_item))
+    
+    # # append val and test
+    # val_sequence = input_list[:-2]
+    # next_item = input_list[-2]
+    # if len(val_sequence) > max_seq_len:
+    #     val_sequence = val_sequence[-(max_seq_len):]  # keep last max_seq_len interactions
+    # sequences.append((val_sequence, next_item))
+
+    # test_sequence = input_list[:-1]
+    # next_item = input_list[-1]
+    # if len(test_sequence) > max_seq_len:
+    #     test_sequence = test_sequence[-(max_seq_len):]  # keep last max_seq_len interactions
+    # sequences.append((test_sequence, next_item))
+
+    # Augmentation for the first max_seq_len=50 of the sequence
     for end_index in range(1, max_seq_len):
         sequence = input_list[:end_index]
         next_item = input_list[end_index]
         sequences.append((sequence, next_item))
+    # Sliding window for the rest of the sequence with window size = max_seq_len
     for start_index in range(n - max_seq_len):
         sequence = input_list[start_index:start_index + max_seq_len]
         next_item = input_list[start_index + max_seq_len]
@@ -77,6 +101,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
             if item_count[i] >= 5:
                 eligible_items.add(i)
     print(f"Number of eligible items: {len(eligible_items)}")
+
     filtered_user_sequence_map = defaultdict(list)
     filtered_behavior_sequence_map = defaultdict(list)
     id_remap = {}
@@ -95,12 +120,16 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 interaction_count += 1
     user_sequence_map = filtered_user_sequence_map
     behavior_sequence_map = filtered_behavior_sequence_map
+
+    # Only for logging, not using this for filtering users
     eligible_users = set()
     for u in user_sequence_map:
         if len(user_sequence_map[u]) >= 4:
             eligible_users.add(u)
     print(f"Number of eligible users: {len(eligible_users)}")
     print(f"Number of interactions: {interaction_count}")
+
+    # Making dataset folders
     output_dir = os.path.join(output_path, f"{dataset}_argumented_{augmented}_seqaug_{seq_augmented}")
     file_path = f"{dataset}_argumented_{augmented}_seqaug_{seq_augmented}"
     if MBHT:
@@ -110,7 +139,9 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
         output_dir = os.path.join(output_path, f"{dataset}_argumented_{augmented}_seqaug_{seq_augmented}_interaction")
         file_path = f"{dataset}_argumented_{augmented}_seqaug_{seq_augmented}_interaction"
     create_directory_if_not_exists(output_dir)
+
     
+    # Splitting and writing training, validation, and test files
     tvt_sequence_map = defaultdict(tuple)
     tvt_behavior_map = defaultdict(tuple)
     if seq_augmented:
@@ -120,7 +151,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 tvt_behavior_map[u] = split_history(behavior_sequence_map[u][-50:], max_seq_len=49 if MBHT else 50)
     else:
         for u in user_sequence_map:
-            if len(user_sequence_map[u]) >= 4:
+            if len(user_sequence_map[u]) >= 4: # need at least 4 interactions to have training, validation, and test
                 tvt_sequence_map[u] = split_history(user_sequence_map[u], max_seq_len=49 if MBHT else 50)
                 tvt_behavior_map[u] = split_history(behavior_sequence_map[u], max_seq_len=49 if MBHT else 50)
     print("Writing training sequences")
