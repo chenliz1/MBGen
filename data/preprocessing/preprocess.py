@@ -14,29 +14,7 @@ def split_history(input_list, max_seq_len = 50):
     n = len(input_list)
     max_seq_len = min(max_seq_len, n - 1)
 
-    # if len(input_list) > max_seq_len + 2:
-    #     input_list = input_list[-(max_seq_len + 2):]  # keep last max_seq_len + 2 interactions
-
-    # # loop for train
-    # for end_index in range(1, len(input_list) - 2):
-    #     sequence = input_list[:end_index]
-    #     next_item = input_list[end_index]
-    #     sequences.append((sequence, next_item))
-    
-    # # append val and test
-    # val_sequence = input_list[:-2]
-    # next_item = input_list[-2]
-    # if len(val_sequence) > max_seq_len:
-    #     val_sequence = val_sequence[-(max_seq_len):]  # keep last max_seq_len interactions
-    # sequences.append((val_sequence, next_item))
-
-    # test_sequence = input_list[:-1]
-    # next_item = input_list[-1]
-    # if len(test_sequence) > max_seq_len:
-    #     test_sequence = test_sequence[-(max_seq_len):]  # keep last max_seq_len interactions
-    # sequences.append((test_sequence, next_item))
-
-    # Augmentation for the first max_seq_len=50 of the sequence
+    # Augmentation for the first max_seq_len-1 of the sequence
     for end_index in range(1, max_seq_len):
         sequence = input_list[:end_index]
         next_item = input_list[end_index]
@@ -46,10 +24,18 @@ def split_history(input_list, max_seq_len = 50):
         sequence = input_list[start_index:start_index + max_seq_len]
         next_item = input_list[start_index + max_seq_len]
         sequences.append((sequence, next_item))
-    
+
     train = sequences[:-2] if len(sequences) > 2 else []
     val = [sequences[-2]] if len(sequences) > 1 else []
     test = [sequences[-1]] if sequences else []
+
+    if n > max_seq_len + 2: # the last 2 full window sequences are used for val and test
+        # Also augment the last full window sequence in the train set
+        last_train_sequence = input_list[-(max_seq_len + 2):-2]
+        for end_index in range(1, len(last_train_sequence)):
+            sequence = last_train_sequence[:end_index]
+            next_item = last_train_sequence[end_index]
+            train.append((sequence, next_item))
 
     return train, val, test
 
