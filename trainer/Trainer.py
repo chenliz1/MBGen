@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from transformers.optimization import get_scheduler
 from torch.nn.utils import clip_grad_norm_
 from torch.optim import AdamW
-from .evaluation import evaluate
+from .evaluation import evaluate, evaluate_in_train
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
     
@@ -154,18 +154,26 @@ class TIGERTrainer(object):
                         perf['NDCG@10_behavior_specific'] = ndcg_10
                         # Evaluate Behavior-Item prediction
                     if self.model is torch.nn.DataParallel:
-                        recall_5,recall_10,ndcg_5,ndcg_10, eval_loss = evaluate(self.model.module, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
+                        recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, recall_5_bt, recall_10_bt, ndcg_5_bt, ndcg_10_bt = evaluate_in_train(self.model.module, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
                     else:
-                        recall_5,recall_10,ndcg_5,ndcg_10, eval_loss = evaluate(self.model, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
+                        recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, recall_5_bt, recall_10_bt, ndcg_5_bt, ndcg_10_bt = evaluate_in_train(self.model, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
                     self.writer.add_scalar('Loss/validation_loss_all', eval_loss, epoch)
                     self.writer.add_scalar('Metrics/Recall@5_all', recall_5, epoch)
                     self.writer.add_scalar('Metrics/Recall@10_all', recall_10, epoch)
                     self.writer.add_scalar('Metrics/NDCG@5_all', ndcg_5, epoch)
                     self.writer.add_scalar('Metrics/NDCG@10_all', ndcg_10, epoch)
+                    self.writer.add_scalar('Metrics/Recall@5_behavior_only', recall_5_bt, epoch)
+                    self.writer.add_scalar('Metrics/Recall@10_behavior_only', recall_10_bt, epoch)
+                    self.writer.add_scalar('Metrics/NDCG@5_behavior_only', ndcg_5_bt, epoch)
+                    self.writer.add_scalar('Metrics/NDCG@10_behavior_only', ndcg_10_bt, epoch)
                     perf['Recall@5_all'] = recall_5
                     perf['Recall@10_all'] = recall_10
                     perf['NDCG@5_all'] = ndcg_5
                     perf['NDCG@10_all'] = ndcg_10
+                    perf['Recall@5_behavior_only'] = recall_5_bt
+                    perf['Recall@10_behavior_only'] = recall_10_bt
+                    perf['NDCG@5_behavior_only'] = ndcg_5_bt
+                    perf['NDCG@10_behavior_only'] = ndcg_10_bt
                     if ndcg_10 > best_ndcg_10:
                         self.best_performance = perf
                         best_ndcg_10 = ndcg_10

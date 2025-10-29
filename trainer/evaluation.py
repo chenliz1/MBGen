@@ -252,3 +252,68 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
     model.train()
     return sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses)
+
+def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Target', no_output=False, behavior_token = True, reverse_bt = False):
+    model.eval()
+    recall_at_10 = []
+    recall_at_5s = []
+    recall_at_10s = []
+    ndcg_at_5s = []
+    ndcg_at_10s = []
+    losses = []
+
+    recall_at_5s_bt = []
+    recall_at_10s_bt = []
+    ndcg_at_5s_bt = []
+    ndcg_at_10s_bt = []
+    if not no_output:
+        progress_bar = tqdm(range(len(dataloader)))
+    for batch in dataloader:
+        batch_size = batch['input_ids'].shape[0]
+        input_ids = batch['input_ids'].to(device).to(torch.long)
+        attention_mask = batch['attention_mask'].to(device).to(torch.long)
+        labels = batch['labels'].to(device).to(torch.long)
+        label_len = labels.shape[1]
+
+        decoder_input = torch.zeros(batch_size, 1, device=input_ids.device, dtype=torch.long)
+        with torch.no_grad():
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            losses.append(outputs.loss.item())
+            del(outputs)
+        if behavior_token and (not reverse_bt):
+            outputs = beam_search(model, input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input, max_length=label_len + 1, num_beams=num_beams, num_return_sequences=10)
+        else:
+            outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input, max_length=label_len + 1, num_beams=num_beams, num_return_sequences=10)
+        outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
+        labels = labels[:,:-1] # Remove EOS
+
+        recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
+        recall_at_5s.append(recall_at_5)
+        recall_at_10s.append(recall_at_10)
+        ndcg_at_5s.append(ndcg_at_5)
+        ndcg_at_10s.append(ndcg_at_10)
+
+        outputs_bt = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
+        labels_bt = labels[:, :1] # Same
+        recall_at_5_bt, recall_at_10_bt, ndcg_at_5_bt, ndcg_at_10_bt= calculate_metrics(outputs_bt, labels_bt)
+        recall_at_5s_bt.append(recall_at_5_bt)
+        recall_at_10s_bt.append(recall_at_10_bt)
+        ndcg_at_5s_bt.append(ndcg_at_5_bt)
+        ndcg_at_10s_bt.append(ndcg_at_10_bt)
+        if not no_output:
+            progress_bar.set_description(f"recall@10: {(sum(recall_at_10s) / len(recall_at_10s)):.4f}, NDCG@10: {(sum(ndcg_at_10s) / len(ndcg_at_10s)):.4f}")
+            progress_bar.update(1)
+    if not no_output:
+        progress_bar.close()
+    print(f"Validation Loss: {sum(losses) / len(losses)}")
+    print(f"recall@5: {sum(recall_at_5s) / len(recall_at_5s)}")
+    print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
+    print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
+    print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
+    print("--- Behavior-only evaluation ---")
+    print(f"recall@5 (Behavior_only): {sum(recall_at_5s_bt) / len(recall_at_5s_bt)}")
+    print(f"recall@10 (Behavior_only): {sum(recall_at_10s_bt) / len(recall_at_10s_bt)}")
+    print(f"NDCG@5 (Behavior_only): {sum(ndcg_at_5s_bt) / len(ndcg_at_5s_bt)}")
+    print(f"NDCG@10 (Behavior_only): {sum(ndcg_at_10s_bt) / len(ndcg_at_10s_bt)}")
+    model.train()
+    return sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), sum(recall_at_5s_bt) / len(recall_at_5s_bt), sum(recall_at_10s_bt) / len(recall_at_10s_bt), sum(ndcg_at_5s_bt) / len(ndcg_at_5s_bt), sum(ndcg_at_10s_bt) / len(ndcg_at_10s_bt)
