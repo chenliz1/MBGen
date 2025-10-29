@@ -234,6 +234,18 @@ class TIGERTrainer(object):
             for key, value in results.items():
                 if "Behavior_item" in key:
                     print(f"{key}: {value}")
+            # Evaluate on behavior only data
+            recall_5, recall_10, ndcg_5, ndcg_10, eval_loss = evaluate(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_only', num_beams= num_beams, reverse_bt = self.reverse_bt)
+            results['Test Loss (Behavior_only)'] = eval_loss
+            results['Recall@5 (Behavior_only)'] = recall_5
+            results['Recall@10 (Behavior_only)'] = recall_10
+            results['NDCG@5 (Behavior_only)'] = ndcg_5
+            results['NDCG@10 (Behavior_only)'] = ndcg_10
+            
+            print("Behavior-only Evaluation Metrics:")
+            for key, value in results.items():
+                if "Behavior_only" in key:
+                    print(f"{key}: {value}")
         
         with open(self.save_location + f"/results.txt", 'a') as f:
             f.write("Test Results:\n")

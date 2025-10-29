@@ -151,7 +151,7 @@ def beam_search(model, input_ids, attention_mask, decoder_input_ids = None, max_
     - model (torch.nn.Module): The model to use for generating sequences.
     - input_ids (torch.Tensor): Tensor of input ids.
     - attention_mask (torch.Tensor): Tensor representing the attention mask.
-    - max_length (int): Maximum length of the sequence to be generated; controls when to stop extending the sequence.
+    - max_length (int): Maximum length of the sequence to be generated; controls when to stop extending the sequence. [BOS, behavior_token, item_token_1, item_token_2, item_token_3, EOS]
     - num_beams (int): Number of beams for beam search.
     - num_return_sequences (int): Number of sequences to return.
     - return_score (bool): If True, returns a tuple of (sequences, scores) where 'scores' are the average log likelihood of the returned sequences.
@@ -229,8 +229,12 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
             outputs = beam_search(model, input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input, max_length=label_len + 1, num_beams=num_beams, num_return_sequences=10)
         else:
             outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input, max_length=label_len + 1, num_beams=num_beams, num_return_sequences=10)
-        outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)
-        labels = labels[:,:-1]
+        outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
+        labels = labels[:,:-1] # Remove EOS
+        # Add this for Behavior_only mode:
+        if eval_mode == 'Behavior_only':
+            outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
+            labels = labels[:, :1] # Same
         recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
