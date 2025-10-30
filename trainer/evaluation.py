@@ -246,10 +246,10 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
             outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input, max_length=label_len + 1, num_beams=num_beams, num_return_sequences=10)
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
-        # Add this for Behavior_only mode:
-        if eval_mode == 'Behavior_only':
-            outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
-            labels = labels[:, :1] # Same
+        if eval_mode == 'Target':
+            # Print distinct values in outputs and labels behaviors for debugging
+            print("Distinct values in outputs:", outputs[:, :, 0].unique())
+            print("Distinct values in labels:", labels[:, 0].unique())
         recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
