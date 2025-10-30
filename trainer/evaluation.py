@@ -18,9 +18,8 @@ def ndcg_at_k(r, k):
 
 def calculate_metrics(outputs, labels):
     batch_size, k, _ = outputs.shape  # Assuming outputs is [batch_size, 10, seq_len]
-    recall_at_5, recall_at_10 = [], []
+    recall_at_1, recall_at_5, recall_at_10 = [], [], []
     ndcg_at_5, ndcg_at_10 = [], []
-
     for i in range(batch_size):
         label = labels[i].unsqueeze(0)  # [1, seq_len]
         out = outputs[i]  # [10, seq_len]
@@ -29,8 +28,10 @@ def calculate_metrics(outputs, labels):
         matches = matches.any(dim=1).cpu().numpy()  # [10]
 
         # Recall
+        recall_at_1.append(matches[:1].sum() / 1.0)  # Assuming each label has only 1 correct match.
         recall_at_5.append(matches[:5].sum() / 1.0)  # Assuming each label has only 1 correct match.
         recall_at_10.append(matches.sum() / 1.0)
+
 
         # NDCG (binary relevance)
         ndcg_at_5.append(ndcg_at_k(matches, 5))
@@ -38,6 +39,7 @@ def calculate_metrics(outputs, labels):
 
     # Calculate mean metrics
     metrics = (
+        np.mean(recall_at_1),
         np.mean(recall_at_5),
         np.mean(recall_at_10),
         np.mean(ndcg_at_5),
@@ -213,12 +215,13 @@ def beam_search(model, input_ids, attention_mask, decoder_input_ids = None, max_
 
 def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Target', no_output=False, behavior_token = True, reverse_bt = False):
     model.eval()
-    recall_at_10 = []
+    recall_at_1s = []
     recall_at_5s = []
     recall_at_10s = []
     ndcg_at_5s = []
     ndcg_at_10s = []
     losses = []
+    matched_items = set()
     if not no_output:
         progress_bar = tqdm(range(len(dataloader)))
     for batch in dataloader:
@@ -246,11 +249,17 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
             outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input, max_length=label_len + 1, num_beams=num_beams, num_return_sequences=10)
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
+
+        # Get index of matched items where outputs[:, 0, 1:] == labels[:, 1:], add all item tensors labels[:, 1:] to matched_items set
+        matched_indices = torch.where(torch.all(outputs[:, 0, 1:] == labels[:, 1:], dim=1))[0]
+        for idx in matched_indices:
+            matched_items.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
         # Add this for Behavior_only mode:
         if eval_mode == 'Behavior_only':
             outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
             labels = labels[:, :1] # Same
-        recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
+        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
+        recall_at_1s.append(recall_at_1)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
         ndcg_at_5s.append(ndcg_at_5)
@@ -261,22 +270,24 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     if not no_output:
         progress_bar.close()
     print(f"Validation Loss: {sum(losses) / len(losses)}")
+    print(f"recall@1: {sum(recall_at_1s) / len(recall_at_1s)}")
     print(f"recall@5: {sum(recall_at_5s) / len(recall_at_5s)}")
     print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
+    print(f"Distinct matched items count: {len(matched_items)}")
     model.train()
-    return sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses)
+    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), len(matched_items)
 
 def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Target', no_output=False, behavior_token = True, reverse_bt = False):
     model.eval()
-    recall_at_10 = []
+    recall_at_1s = []
     recall_at_5s = []
     recall_at_10s = []
     ndcg_at_5s = []
     ndcg_at_10s = []
     losses = []
-
+    matched_items = set()
     total_correct = 0
     total_samples = 0
     total_true_positives = 0
@@ -303,7 +314,13 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
 
-        recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
+        # Get index of matched items where outputs[:, 0, 1:] == labels[:, 1:], add all item tensors labels[:, 1:] to matched_items set
+        matched_indices = torch.where(torch.all(outputs[:, 0, 1:] == labels[:, 1:], dim=1))[0]
+        for idx in matched_indices:
+            matched_items.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
+
+        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
+        recall_at_1s.append(recall_at_1)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
         ndcg_at_5s.append(ndcg_at_5)
@@ -324,10 +341,12 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     if not no_output:
         progress_bar.close()
     print(f"Validation Loss: {sum(losses) / len(losses)}")
+    print(f"recall@1: {sum(recall_at_1s) / len(recall_at_1s)}")
     print(f"recall@5: {sum(recall_at_5s) / len(recall_at_5s)}")
     print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
+    print(f"Distinct matched items count: {len(matched_items)}")
     print("--- Behavior-only evaluation ---")
     accuracy = total_correct / total_samples if total_samples > 0 else 0.0
     precision = total_true_positives / total_predicted_positives if total_predicted_positives > 0 else 0.0
@@ -335,10 +354,11 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"Total correct predictions: {total_correct}")
     print(f"Total predicted positives: {total_predicted_positives}")
     print(f"Total actual positives: {total_actual_positives}")
+    print(f"Total True Positives: {total_true_positives}")
     print(f"Total number of samples: {total_samples}")
     print(f"Accuracy (Behavior_only): {accuracy}")
     print(f"Recall (Behavior_only): {recall}")
     print(f"Precision (Behavior_only): {precision}")
 
     model.train()
-    return sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), accuracy, recall, precision
+    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), len(matched_items), accuracy, recall, precision, total_true_positives
