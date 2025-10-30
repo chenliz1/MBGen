@@ -332,7 +332,10 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     accuracy = total_correct / total_samples if total_samples > 0 else 0.0
     precision = total_true_positives / total_predicted_positives if total_predicted_positives > 0 else 0.0
     recall = total_true_positives / total_actual_positives if total_actual_positives > 0 else 0.0
-    
+    print(f"Total correct predictions: {total_correct}")
+    print(f"Total predicted positives: {total_predicted_positives}")
+    print(f"Total actual positives: {total_actual_positives}")
+    print(f"Total number of samples: {total_samples}")
     print(f"Accuracy (Behavior_only): {accuracy}")
     print(f"Recall (Behavior_only): {recall}")
     print(f"Precision (Behavior_only): {precision}")
