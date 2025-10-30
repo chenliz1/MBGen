@@ -231,31 +231,27 @@ class TIGERTrainer(object):
                         print(f"{key}: {value}")
 
             # Evaluate on behavior item data
-            recall_5, recall_10, ndcg_5, ndcg_10, eval_loss = evaluate(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_item', num_beams= num_beams, reverse_bt = self.reverse_bt)
+            recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, recall_5_bt, recall_10_bt, ndcg_5_bt, ndcg_10_bt = evaluate_in_train(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_item', num_beams= num_beams, reverse_bt = self.reverse_bt)
             results['Test Loss (Behavior_item)'] = eval_loss
             results['Recall@5 (Behavior_item)'] = recall_5
             results['Recall@10 (Behavior_item)'] = recall_10
             results['NDCG@5 (Behavior_item)'] = ndcg_5
             results['NDCG@10 (Behavior_item)'] = ndcg_10
+            results['Recall@5 (Behavior_only)'] = recall_5_bt
+            results['Recall@10 (Behavior_only)'] = recall_10_bt
+            results['NDCG@5 (Behavior_only)'] = ndcg_5_bt
+            results['NDCG@10 (Behavior_only)'] = ndcg_10_bt
 
             print("Behavior-item Evaluation Metrics:")
             for key, value in results.items():
                 if "Behavior_item" in key:
                     print(f"{key}: {value}")
-            # Evaluate on behavior only data
-            recall_5, recall_10, ndcg_5, ndcg_10, eval_loss = evaluate(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_only', num_beams= num_beams, reverse_bt = self.reverse_bt)
-            results['Test Loss (Behavior_only)'] = eval_loss
-            results['Recall@5 (Behavior_only)'] = recall_5
-            results['Recall@10 (Behavior_only)'] = recall_10
-            results['NDCG@5 (Behavior_only)'] = ndcg_5
-            results['NDCG@10 (Behavior_only)'] = ndcg_10
-            
             print("Behavior-only Evaluation Metrics:")
             for key, value in results.items():
                 if "Behavior_only" in key:
                     print(f"{key}: {value}")
-        
-        with open(self.save_location + f"/results.txt", 'a') as f:
+
+        with open(self.save_location + "/results.txt", 'a') as f:
             f.write("Test Results:\n")
             for key, value in results.items():
                 f.write(f"{key}: {value:.4f}\n")
