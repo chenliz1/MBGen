@@ -46,6 +46,17 @@ def calculate_metrics(outputs, labels):
 
     return metrics
 
+def calculate_acc_recall_precision(outputs, labels):
+    batch_size = outputs.shape[0]
+    correct = (outputs == labels).sum().item()
+    true_positives = ((outputs == 1) & (labels == 1)).sum().item()
+    predicted_positives = (outputs == 1).sum().item()
+    actual_positives = (labels == 1).sum().item()
+    
+    return correct, batch_size, true_positives, predicted_positives, actual_positives
+
+
+
 
 def prepare_beam_search_inputs(model, input_ids, attention_mask, decoder_input_ids, batch_size, num_beams):
     """
@@ -262,10 +273,11 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     ndcg_at_10s = []
     losses = []
 
-    recall_at_5s_bt = []
-    recall_at_10s_bt = []
-    ndcg_at_5s_bt = []
-    ndcg_at_10s_bt = []
+    total_correct = 0
+    total_samples = 0
+    total_true_positives = 0
+    total_predicted_positives = 0
+    total_actual_positives = 0
     if not no_output:
         progress_bar = tqdm(range(len(dataloader)))
     for batch in dataloader:
@@ -293,13 +305,15 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
         ndcg_at_5s.append(ndcg_at_5)
         ndcg_at_10s.append(ndcg_at_10)
 
-        outputs_bt = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
-        labels_bt = labels[:, :1] # Same
-        recall_at_5_bt, recall_at_10_bt, ndcg_at_5_bt, ndcg_at_10_bt= calculate_metrics(outputs_bt, labels_bt)
-        recall_at_5s_bt.append(recall_at_5_bt)
-        recall_at_10s_bt.append(recall_at_10_bt)
-        ndcg_at_5s_bt.append(ndcg_at_5_bt)
-        ndcg_at_10s_bt.append(ndcg_at_10_bt)
+        outputs_bt = outputs[:, 0, 0]
+        labels_bt = labels[:, 0]
+        correct, batch_size, tp, pred_pos, actual_pos = calculate_acc_recall_precision(outputs_bt, labels_bt)
+        
+        total_correct += correct
+        total_samples += batch_size
+        total_true_positives += tp
+        total_predicted_positives += pred_pos
+        total_actual_positives += actual_pos
         if not no_output:
             progress_bar.set_description(f"recall@10: {(sum(recall_at_10s) / len(recall_at_10s)):.4f}, NDCG@10: {(sum(ndcg_at_10s) / len(ndcg_at_10s)):.4f}")
             progress_bar.update(1)
@@ -311,9 +325,13 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
     print("--- Behavior-only evaluation ---")
-    print(f"recall@5 (Behavior_only): {sum(recall_at_5s_bt) / len(recall_at_5s_bt)}")
-    print(f"recall@10 (Behavior_only): {sum(recall_at_10s_bt) / len(recall_at_10s_bt)}")
-    print(f"NDCG@5 (Behavior_only): {sum(ndcg_at_5s_bt) / len(ndcg_at_5s_bt)}")
-    print(f"NDCG@10 (Behavior_only): {sum(ndcg_at_10s_bt) / len(ndcg_at_10s_bt)}")
+    accuracy = total_correct / total_samples if total_samples > 0 else 0.0
+    precision = total_true_positives / total_predicted_positives if total_predicted_positives > 0 else 0.0
+    recall = total_true_positives / total_actual_positives if total_actual_positives > 0 else 0.0
+    
+    print(f"Accuracy (Behavior_only): {accuracy}")
+    print(f"Recall (Behavior_only): {recall}")
+    print(f"Precision (Behavior_only): {precision}")
+
     model.train()
-    return sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), sum(recall_at_5s_bt) / (len(recall_at_5s_bt) * 5), sum(recall_at_10s_bt) / (len(recall_at_10s_bt) * 10), sum(ndcg_at_5s_bt) / len(ndcg_at_5s_bt), sum(ndcg_at_10s_bt) / len(ndcg_at_10s_bt)
+    return sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), accuracy, recall, precision
