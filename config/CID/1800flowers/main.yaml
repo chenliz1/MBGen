@@ -45,7 +45,7 @@ n_positions: 50
 
 #trainer:
 exp_id: "CID_1800flowers"
-steps: 70000 # Initial was 350000
+steps: 35000 # Initial was 350000
 lr: 0.001
 warmup_steps: 3000
 weight_decay: 0.005
