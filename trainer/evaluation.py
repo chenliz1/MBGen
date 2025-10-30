@@ -47,10 +47,6 @@ def calculate_metrics(outputs, labels):
     return metrics
 
 def calculate_acc_recall_precision(outputs, labels):
-    # Visualize the distinct values in outputs and labels
-    print("Distinct values in outputs:", outputs.unique())
-    print("Distinct values in labels:", labels.unique())    
-
     batch_size = outputs.shape[0]
     correct = (outputs == labels).sum().item()
     true_positives = ((outputs == 1) & (labels == 1)).sum().item()
