@@ -49,10 +49,6 @@ def calculate_metrics(outputs, labels):
     return metrics
 
 def calculate_acc_recall_precision(outputs, labels):
-    # if Length number of positive samples in labels is not zero, or length of distinct values is not one, print
-    if (labels == 1).sum().item() > 0 or labels.unique().size(0) > 1:
-        print("Distinct values in outputs:", outputs.unique())
-        print("Distinct values in labels:", labels.unique())
     batch_size = outputs.shape[0]
     correct = (outputs == labels).sum().item()
     true_positives = ((outputs == 1) & (labels == 1)).sum().item()
