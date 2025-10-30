@@ -25,18 +25,18 @@ T5_type: "PBA"
 behavior_injection: True
 behavior_embedding_dim: 64
 num_positions: 4
-num_behavior: 4
+num_behavior: 2
 num_layers: 2 # initial was 4
 num_decoder_layers: 2 # initial was 4
-num_sparse_encoder_layers: 4
+num_sparse_encoder_layers: 2
 num_sparse_decoder_layers: 4
 sparse_layers_encoder: []
 sparse_layers_decoder: [0, 1, 2, 3]
 behavior_injection_encoder: [0, 1]
 behavior_injection_decoder: [0, 1]
-d_model: 128 # initial was 256
-d_ff: 256 # initial was 512
-num_heads: 6
+d_model: 64 # initial was 256
+d_ff: 128 # initial was 512
+num_heads: 2 # initial was 6
 d_kv: 64
 dropout_rate: 0.0
 activation_function: "relu"
@@ -53,7 +53,7 @@ batch_size: 1024 # Initial was 512
 eval_batch_size: 32 # Initial was 32
 patience: 10
 auto_save_epochs: 5
-epochs_per_eval: 2 # Initial was 1
-epochs_per_all_eval: 2 # Initial was 1
+epochs_per_eval: 3 # Initial was 1
+epochs_per_all_eval: 3 # Initial was 1
 decoder_input: [0,1] # 0: BOS, 1: target behavior token
 sample_ratio: 1.0
