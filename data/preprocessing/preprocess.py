@@ -32,13 +32,13 @@ def split_history(input_list, max_seq_len = 50):
     val = [sequences[-2]] if len(sequences) > 1 else []
     test = [sequences[-1]] if sequences else []
 
-    # if n > max_seq_len + 2: # the last 2 full window sequences are used for val and test
-    #     # Also augment the last full window sequence in the train set
-    #     last_train_sequence = input_list[-(max_seq_len + 2):-2]
-    #     for end_index in range(1, len(last_train_sequence)):
-    #         sequence = last_train_sequence[:end_index]
-    #         next_item = last_train_sequence[end_index]
-    #         train.append((sequence, next_item))
+    if n > max_seq_len + 2: # the last 2 full window sequences are used for val and test
+        # Also augment the last full window sequence in the train set
+        last_train_sequence = input_list[-(max_seq_len + 2):-2]
+        for end_index in range(1, len(last_train_sequence)):
+            sequence = last_train_sequence[:end_index]
+            next_item = last_train_sequence[end_index]
+            train.append((sequence, next_item))
 
     return train, val, test
 
