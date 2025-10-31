@@ -322,6 +322,7 @@ def read_tsv_data(file_path):
     user_ids = []
     sequences = []
     behavior_sequences = []
+    conv_amount_sequences = []
     total_lines = count_lines(file_path) - 1  # Adjust for header if present
 
     with open(file_path, 'r', newline='', encoding='utf-8') as file:
@@ -334,11 +335,13 @@ def read_tsv_data(file_path):
             user_id = int(row[0])
             item_id_list = list(map(int, row[1].split() + [row[2]]))
             behavior_list = list(map(int, map(float, row[3].split())))
-            
+            conv_amount_list = list(map(float, row[4].split()))
+
             user_ids.append(user_id)
             sequences.append(item_id_list)
             behavior_sequences.append(behavior_list)
-    return user_ids, sequences, behavior_sequences
+            conv_amount_sequences.append(conv_amount_list)
+    return user_ids, sequences, behavior_sequences, conv_amount_sequences
 
 class random_map(object):
     def __init__(self, random_dict):
