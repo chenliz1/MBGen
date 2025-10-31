@@ -53,19 +53,22 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
     user_sequence_map = defaultdict(list)
     behavior_sequence_map = defaultdict(list)
     original_user_sequence_map = defaultdict(list)
+    conv_amount_sequence_map = defaultdict(list)
     with open(os.path.join(path, dataset+".txt"), 'r') as f:
         behavior_map = BEHAVIOR_MAP[dataset]
         for line in f.readlines():
             d = line.split('\t')
-            u, i, b, t = int(d[0]), int(d[1]), str(d[2]), float(d[3].strip())
+            u, i, b, t, a = int(d[0]), int(d[1]), str(d[2]), float(d[3].strip()), float(d[4].strip())
             if augmented:
                 augmented_item = i * len(behavior_map) + behavior_map[b]
             else:
                 augmented_item = i
-            data.append((u, augmented_item, t, behavior_map[b]))
+            data.append((u, augmented_item, t, behavior_map[b], a))
             user_sequence_map[u].append(augmented_item)
             original_user_sequence_map[u].append(i)
             behavior_sequence_map[u].append(behavior_map[b]+1) # add 1 to avoid padding conflict
+            conv_amount_sequence_map[u].append(a)
+
     item_count = defaultdict(int)
     eligible_items = set()
     # filter out items with less than 5 interactions, since we only take the last 50 interaction sequence, let's insure that the item has at least 5 interactions in the actual training sequence
@@ -93,6 +96,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
 
     filtered_user_sequence_map = defaultdict(list)
     filtered_behavior_sequence_map = defaultdict(list)
+    filtered_conv_amount_sequence_map = defaultdict(list)
     id_remap = {}
     interaction_count = 0
     for i, item in enumerate(eligible_items):
@@ -106,9 +110,11 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
             if user_sequence_map[u][i] in eligible_items:
                 filtered_user_sequence_map[u].append(id_remap[user_sequence_map[u][i]])
                 filtered_behavior_sequence_map[u].append(behavior_sequence_map[u][i])
+                filtered_conv_amount_sequence_map[u].append(conv_amount_sequence_map[u][i])
                 interaction_count += 1
     user_sequence_map = filtered_user_sequence_map
     behavior_sequence_map = filtered_behavior_sequence_map
+    conv_amount_sequence_map = filtered_conv_amount_sequence_map
 
     # Only for logging, not using this for filtering users
     eligible_users = set()
@@ -133,125 +139,149 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
     # Splitting and writing training, validation, and test files
     tvt_sequence_map = defaultdict(tuple)
     tvt_behavior_map = defaultdict(tuple)
+    tvt_conv_amount_map = defaultdict(tuple)
     if seq_augmented:
         for u in user_sequence_map:
             if len(user_sequence_map[u]) >= 4:
                 tvt_sequence_map[u] = split_history(user_sequence_map[u][-50:], max_seq_len=49 if MBHT else 50)
                 tvt_behavior_map[u] = split_history(behavior_sequence_map[u][-50:], max_seq_len=49 if MBHT else 50)
+                tvt_conv_amount_map[u] = split_history(conv_amount_sequence_map[u][-50:], max_seq_len=49 if MBHT else 50)
     else:
         for u in user_sequence_map:
             if len(user_sequence_map[u]) >= 4: # need at least 4 interactions to have training, validation, and test
                 tvt_sequence_map[u] = split_history(user_sequence_map[u], max_seq_len=49 if MBHT else 50)
                 tvt_behavior_map[u] = split_history(behavior_sequence_map[u], max_seq_len=49 if MBHT else 50)
+                tvt_conv_amount_map[u] = split_history(conv_amount_sequence_map[u], max_seq_len=49 if MBHT else 50)
     print("Writing training sequences")
     with open(os.path.join(output_dir, file_path+".train.inter"), 'w') as f:
         if interaction:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount:float\n')
         else:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
         for u in tqdm(tvt_sequence_map):
             if seq_augmented:
                 if MBHT:
                     if dataset == 'yelp':
-                        last_subsequence_i, last_subsequence_b = None, None
-                        for subsequence_i, subsequence_b in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0]):
+                        last_subsequence_i, last_subsequence_b , last_subsequence_a= None, None, None
+                        for subsequence_i, subsequence_b, subsequence_a in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0], tvt_conv_amount_map[u][0]):
                             if subsequence_b[1] == 1: # last interaction is target interaction
-                                last_subsequence_i, last_subsequence_b = subsequence_i, subsequence_b
+                                last_subsequence_i, last_subsequence_b, last_subsequence_a = subsequence_i, subsequence_b, subsequence_a
                         if last_subsequence_i is not None:
                             item_id_list = " ".join(map(str, last_subsequence_i[0]))
                             behavior_list = " ".join(map(lambda x: str(x - 1), last_subsequence_b[0]))
-                            f.write(f"{u}\t{item_id_list}\t{last_subsequence_i[1]}\t{behavior_list}\n")
+                            conv_amount_list = " ".join(map(str, last_subsequence_a[0]))
+                            f.write(f"{u}\t{item_id_list}\t{last_subsequence_i[1]}\t{behavior_list}\t{conv_amount_list}\n")
                     else:
-                        for subsequence_i, subsequence_b in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0]):
+                        for subsequence_i, subsequence_b, subsequence_a in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0], tvt_conv_amount_map[u][0]):
                             if subsequence_b[1] == 1: # last interaction is target interaction
                                 item_id_list = " ".join(map(str, subsequence_i[0]))
                                 behavior_list = " ".join(map(lambda x: str(x - 1), subsequence_b[0])) # MBHT uses 0-based indexing for behavior
-                                f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\n")
+                                conv_amount_list = " ".join(map(str, subsequence_a[0]))
+                                f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\t{conv_amount_list}\n")
                 else:
-                    for subsequence_i, subsequence_b in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0]):
+                    for subsequence_i, subsequence_b, subsequence_a in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0], tvt_conv_amount_map[u][0]):
                         item_id_list = " ".join(map(str, subsequence_i[0]))
                         behavior_list = " ".join(map(str, subsequence_b[0]))
-                        f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\n")
+                        conv_amount_list = " ".join(map(str, subsequence_a[0]))
+                        f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\t{conv_amount_list}\n")
             elif interaction:
-                subsequence_i, subsequence_b = tvt_sequence_map[u][0][-1], tvt_behavior_map[u][0][-1]
-                for i,b in zip(subsequence_i[0] + [subsequence_i[1]], subsequence_b[0] + [subsequence_b[1]]):
-                    f.write(f"{u}\t{i}\t{b}\n")
+                subsequence_i, subsequence_b, subsequence_a = tvt_sequence_map[u][0][-1], tvt_behavior_map[u][0][-1], tvt_conv_amount_map[u][0][-1]
+                for i,b,a in zip(subsequence_i[0] + [subsequence_i[1]], subsequence_b[0] + [subsequence_b[1]], subsequence_a[0] + [subsequence_a[1]]):
+                    f.write(f"{u}\t{i}\t{b}\t{a}\n")
             else:
-                subsequence_i, subsequence_b = tvt_sequence_map[u][0][-1], tvt_behavior_map[u][0][-1]
+                subsequence_i, subsequence_b, subsequence_a = tvt_sequence_map[u][0][-1], tvt_behavior_map[u][0][-1], tvt_conv_amount_map[u][0][-1]
                 item_id_list = " ".join(map(str, subsequence_i[0]))
                 behavior_list = " ".join(map(str, subsequence_b[0] + [subsequence_b[1]]))
-                f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\n")
+                conv_amount_list = " ".join(map(str, subsequence_a[0] + [subsequence_a[1]]))
+                f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\t{conv_amount_list}\n")
     print("Writing validation and test sequences")
     with open(os.path.join(output_dir, file_path+".val.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][1][0][1] == 1): # last interaction is target interaction
                     if not MBHT:
                         behavior_list = tvt_behavior_map[u][1][0][0] + [tvt_behavior_map[u][1][0][1]]
+                        conv_amount_list = tvt_conv_amount_map[u][1][0][0] + [tvt_conv_amount_map[u][1][0][1]]
+
                     else:
                         behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][1][0][0])
+                        conv_amount_list = tvt_conv_amount_map[u][1][0][0]
                     behavior_list = " ".join(map(str, behavior_list))
                     item_id_list = " ".join(map(str, tvt_sequence_map[u][1][0][0]))
-                    f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][1][0][1]}\t{behavior_list}\n")
+                    conv_amount_list = " ".join(map(str, conv_amount_list))
+                    f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][1][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][1][0][1] == 1): # last interaction is target interaction
                     behavior = tvt_behavior_map[u][1][0][1]
                     target_item = tvt_sequence_map[u][1][0][1]
-                    f.write(f"{u}\t{target_item}\t{behavior}\n")
+                    conv_amount = tvt_conv_amount_map[u][1][0][1]
+                    f.write(f"{u}\t{target_item}\t{behavior}\t{conv_amount}\n")
     with open(os.path.join(output_dir, file_path+".test.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][2][0][1] == 1): # last interaction is target interaction
                     if not MBHT:
                         behavior_list = tvt_behavior_map[u][2][0][0] + [tvt_behavior_map[u][2][0][1]]
+                        conv_amount_list = tvt_conv_amount_map[u][2][0][0] + [tvt_conv_amount_map[u][2][0][1]]
                     else:
                         behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][2][0][0])
+                        conv_amount_list = tvt_conv_amount_map[u][2][0][0]
                     behavior_list = " ".join(map(str, behavior_list))
                     item_id_list = " ".join(map(str, tvt_sequence_map[u][2][0][0]))
-                    f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][2][0][1]}\t{behavior_list}\n")
+                    conv_amount_list = " ".join(map(str, conv_amount_list))
+                    f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][2][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][2][0][1] == 1): # last interaction is target interaction
                     behavior = tvt_behavior_map[u][2][0][1]
                     target_item = tvt_sequence_map[u][2][0][1]
-                    f.write(f"{u}\t{target_item}\t{behavior}\n")
+                    conv_amount = tvt_conv_amount_map[u][2][0][1]
+                    f.write(f"{u}\t{target_item}\t{behavior}\t{conv_amount}\n")
     # save all behavioral types in a seperate file
     with open(os.path.join(output_dir, file_path+".val_all.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if not MBHT:
                     behavior_list = tvt_behavior_map[u][1][0][0] + [tvt_behavior_map[u][1][0][1]]
+                    conv_amount_list = tvt_conv_amount_map[u][1][0][0] + [tvt_conv_amount_map[u][1][0][1]]
                 else:
                     behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][1][0][0])
+                    conv_amount_list = tvt_conv_amount_map[u][1][0][0]
                 behavior_list = " ".join(map(str, behavior_list))
                 item_id_list = " ".join(map(str, tvt_sequence_map[u][1][0][0]))
-                f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][1][0][1]}\t{behavior_list}\n")
+                conv_amount_list = " ".join(map(str, conv_amount_list))
+                f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][1][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
             for u in tqdm(tvt_sequence_map):
                 behavior = tvt_behavior_map[u][1][0][1]
                 target_item = tvt_sequence_map[u][1][0][1]
-                f.write(f"{u}\t{target_item}\t{behavior}\n")
+                conv_amount = tvt_conv_amount_map[u][1][0][1]
+                f.write(f"{u}\t{target_item}\t{behavior}\t{conv_amount}\n")
     with open(os.path.join(output_dir, file_path+".test_all.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if not MBHT:
                     behavior_list = tvt_behavior_map[u][2][0][0] + [tvt_behavior_map[u][2][0][1]]
+                    conv_amount_list = tvt_conv_amount_map[u][2][0][0] + [tvt_conv_amount_map[u][2][0][1]]
                 else:
                     behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][2][0][0])
+                    conv_amount_list = tvt_conv_amount_map[u][2][0][0]
                 behavior_list = " ".join(map(str, behavior_list))
                 item_id_list = " ".join(map(str, tvt_sequence_map[u][2][0][0]))
-                f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][2][0][1]}\t{behavior_list}\n")
+                conv_amount_list = " ".join(map(str, conv_amount_list))
+                f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][2][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
             for u in tqdm(tvt_sequence_map):
                 behavior = tvt_behavior_map[u][2][0][1]
                 target_item = tvt_sequence_map[u][2][0][1]
-                f.write(f"{u}\t{target_item}\t{behavior}\n")
+                conv_amount = tvt_conv_amount_map[u][2][0][1]
+                f.write(f"{u}\t{target_item}\t{behavior}\t{conv_amount}\n")
