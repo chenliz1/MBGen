@@ -176,13 +176,13 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                             if subsequence_b[1] == 1: # last interaction is target interaction
                                 item_id_list = " ".join(map(str, subsequence_i[0]))
                                 behavior_list = " ".join(map(lambda x: str(x - 1), subsequence_b[0])) # MBHT uses 0-based indexing for behavior
-                                conv_amount_list = " ".join(map(str, subsequence_a[0]))
+                                conv_amount_list = " ".join(map(str, subsequence_a[0] + [subsequence_a[1]]))
                                 f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\t{conv_amount_list}\n")
                 else:
                     for subsequence_i, subsequence_b, subsequence_a in zip(tvt_sequence_map[u][0], tvt_behavior_map[u][0], tvt_conv_amount_map[u][0]):
                         item_id_list = " ".join(map(str, subsequence_i[0]))
                         behavior_list = " ".join(map(str, subsequence_b[0]))
-                        conv_amount_list = " ".join(map(str, subsequence_a[0]))
+                        conv_amount_list = " ".join(map(str, subsequence_a[0]+ [subsequence_a[1]]))
                         f.write(f"{u}\t{item_id_list}\t{subsequence_i[1]}\t{behavior_list}\t{conv_amount_list}\n")
             elif interaction:
                 subsequence_i, subsequence_b, subsequence_a = tvt_sequence_map[u][0][-1], tvt_behavior_map[u][0][-1], tvt_conv_amount_map[u][0][-1]
@@ -202,11 +202,10 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 if (tvt_behavior_map[u][1][0][1] == 1): # last interaction is target interaction
                     if not MBHT:
                         behavior_list = tvt_behavior_map[u][1][0][0] + [tvt_behavior_map[u][1][0][1]]
-                        conv_amount_list = tvt_conv_amount_map[u][1][0][0] + [tvt_conv_amount_map[u][1][0][1]]
 
                     else:
                         behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][1][0][0])
-                        conv_amount_list = tvt_conv_amount_map[u][1][0][0]
+                    conv_amount_list = tvt_conv_amount_map[u][1][0][0] + [tvt_conv_amount_map[u][1][0][1]]
                     behavior_list = " ".join(map(str, behavior_list))
                     item_id_list = " ".join(map(str, tvt_sequence_map[u][1][0][0]))
                     conv_amount_list = " ".join(map(str, conv_amount_list))
@@ -226,10 +225,9 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 if (tvt_behavior_map[u][2][0][1] == 1): # last interaction is target interaction
                     if not MBHT:
                         behavior_list = tvt_behavior_map[u][2][0][0] + [tvt_behavior_map[u][2][0][1]]
-                        conv_amount_list = tvt_conv_amount_map[u][2][0][0] + [tvt_conv_amount_map[u][2][0][1]]
                     else:
                         behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][2][0][0])
-                        conv_amount_list = tvt_conv_amount_map[u][2][0][0]
+                    conv_amount_list = tvt_conv_amount_map[u][2][0][0] + [tvt_conv_amount_map[u][2][0][1]]
                     behavior_list = " ".join(map(str, behavior_list))
                     item_id_list = " ".join(map(str, tvt_sequence_map[u][2][0][0]))
                     conv_amount_list = " ".join(map(str, conv_amount_list))
@@ -249,10 +247,9 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
             for u in tqdm(tvt_sequence_map):
                 if not MBHT:
                     behavior_list = tvt_behavior_map[u][1][0][0] + [tvt_behavior_map[u][1][0][1]]
-                    conv_amount_list = tvt_conv_amount_map[u][1][0][0] + [tvt_conv_amount_map[u][1][0][1]]
                 else:
                     behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][1][0][0])
-                    conv_amount_list = tvt_conv_amount_map[u][1][0][0]
+                conv_amount_list = tvt_conv_amount_map[u][1][0][0] + [tvt_conv_amount_map[u][1][0][1]]
                 behavior_list = " ".join(map(str, behavior_list))
                 item_id_list = " ".join(map(str, tvt_sequence_map[u][1][0][0]))
                 conv_amount_list = " ".join(map(str, conv_amount_list))
@@ -270,10 +267,9 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
             for u in tqdm(tvt_sequence_map):
                 if not MBHT:
                     behavior_list = tvt_behavior_map[u][2][0][0] + [tvt_behavior_map[u][2][0][1]]
-                    conv_amount_list = tvt_conv_amount_map[u][2][0][0] + [tvt_conv_amount_map[u][2][0][1]]
                 else:
                     behavior_list = map(lambda x: x - 1, tvt_behavior_map[u][2][0][0])
-                    conv_amount_list = tvt_conv_amount_map[u][2][0][0]
+                conv_amount_list = tvt_conv_amount_map[u][2][0][0] + [tvt_conv_amount_map[u][2][0][1]]
                 behavior_list = " ".join(map(str, behavior_list))
                 item_id_list = " ".join(map(str, tvt_sequence_map[u][2][0][0]))
                 conv_amount_list = " ".join(map(str, conv_amount_list))
