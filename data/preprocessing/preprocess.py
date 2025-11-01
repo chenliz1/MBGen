@@ -58,7 +58,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
         behavior_map = BEHAVIOR_MAP[dataset]
         for line in f.readlines():
             d = line.split('\t')
-            u, i, b, t, a = int(d[0]), int(d[1]), str(d[2]), float(d[3].strip()), float(d[4].strip())
+            u, i, b, t, a = int(d[0]), int(d[1]), str(d[2]), float(d[3].strip()), int(d[4].strip())
             if augmented:
                 augmented_item = i * len(behavior_map) + behavior_map[b]
             else:
@@ -155,9 +155,9 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
     print("Writing training sequences")
     with open(os.path.join(output_dir, file_path+".train.inter"), 'w') as f:
         if interaction:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount:int\n')
         else:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:int_seq\n')
         for u in tqdm(tvt_sequence_map):
             if seq_augmented:
                 if MBHT:
@@ -197,7 +197,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
     print("Writing validation and test sequences")
     with open(os.path.join(output_dir, file_path+".val.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:int_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][1][0][1] == 1): # last interaction is target interaction
                     if not MBHT:
@@ -212,7 +212,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                     conv_amount_list = " ".join(map(str, conv_amount_list))
                     f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][1][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:int\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][1][0][1] == 1): # last interaction is target interaction
                     behavior = tvt_behavior_map[u][1][0][1]
@@ -221,7 +221,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                     f.write(f"{u}\t{target_item}\t{behavior}\t{conv_amount}\n")
     with open(os.path.join(output_dir, file_path+".test.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:int_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][2][0][1] == 1): # last interaction is target interaction
                     if not MBHT:
@@ -235,7 +235,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                     conv_amount_list = " ".join(map(str, conv_amount_list))
                     f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][2][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:int\n')
             for u in tqdm(tvt_sequence_map):
                 if (tvt_behavior_map[u][2][0][1] == 1): # last interaction is target interaction
                     behavior = tvt_behavior_map[u][2][0][1]
@@ -245,7 +245,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
     # save all behavioral types in a seperate file
     with open(os.path.join(output_dir, file_path+".val_all.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:int_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if not MBHT:
                     behavior_list = tvt_behavior_map[u][1][0][0] + [tvt_behavior_map[u][1][0][1]]
@@ -258,7 +258,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 conv_amount_list = " ".join(map(str, conv_amount_list))
                 f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][1][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:int\n')
             for u in tqdm(tvt_sequence_map):
                 behavior = tvt_behavior_map[u][1][0][1]
                 target_item = tvt_sequence_map[u][1][0][1]
@@ -266,7 +266,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 f.write(f"{u}\t{target_item}\t{behavior}\t{conv_amount}\n")
     with open(os.path.join(output_dir, file_path+".test_all.inter"), 'w') as f:
         if not interaction:
-            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:float_seq\n')
+            f.write('user_id:token\titem_id_list:token_seq\titem_id:token\tbehavior_list:float_seq\tconv_amount_list:int_seq\n')
             for u in tqdm(tvt_sequence_map):
                 if not MBHT:
                     behavior_list = tvt_behavior_map[u][2][0][0] + [tvt_behavior_map[u][2][0][1]]
@@ -279,7 +279,7 @@ def preprocess(dataset, augmented, seq_augmented, path = os.path.join("..", "raw
                 conv_amount_list = " ".join(map(str, conv_amount_list))
                 f.write(f"{u}\t{item_id_list}\t{tvt_sequence_map[u][2][0][1]}\t{behavior_list}\t{conv_amount_list}\n")
         else:
-            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:float\n')
+            f.write('user_id:token\titem_id:token\tbehavior_id:float\tconv_amount_id:int\n')
             for u in tqdm(tvt_sequence_map):
                 behavior = tvt_behavior_map[u][2][0][1]
                 target_item = tvt_sequence_map[u][2][0][1]

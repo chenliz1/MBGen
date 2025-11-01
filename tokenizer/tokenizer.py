@@ -23,16 +23,17 @@ def custom_chunk(data, num_chunks):
 def process_chunk(user_chunk, sequence_chunk, behavior_chunk, conv_amount_chunk, num_user_tokens, id_offsets, sequence_generator, behavior_token=True):
     train_sequence, train_attention_mask, train_label, train_conv_amount = [], [], [], []
     for i in range(len(user_chunk)):
-        input_ids, attention_mask, labels = sequence_generator.generate_training_sequence(
+        input_ids, attention_mask, labels, conv_amounts = sequence_generator.generate_training_sequence(
             user_chunk[i] % num_user_tokens + id_offsets[-1],
             sequence_chunk[i],
             behavior_chunk[i],
-            behavior_token
+            behavior_token,
+            conv_amount_chunk[i]
         )
         train_sequence.extend(input_ids)
         train_attention_mask.extend(attention_mask)
         train_label.extend(labels)
-        train_conv_amount.append(conv_amount_chunk[i])
+        train_conv_amount.extend(conv_amounts)
     return train_sequence, train_attention_mask, train_label, train_conv_amount
 
 class Tokenizer(object):
@@ -73,29 +74,29 @@ class Tokenizer(object):
             'input_ids': torch.tensor(np.array(combined_sequences, dtype=np.int32), dtype=torch.int32),
             'attention_mask': torch.tensor(np.array(combined_masks, dtype=np.int8), dtype=torch.int8),
             'labels': torch.tensor(np.array(combined_labels, dtype=np.int32), dtype=torch.int32),
-            'conv_amounts': torch.tensor(np.array(combined_conv_amounts, dtype=np.float32), dtype=torch.float32)
+            'conv_amounts': torch.tensor(np.array(combined_conv_amounts, dtype=np.int32), dtype=torch.int32)
         }
 
-    def tokenize_evaluation(self, users, sequences, behaviors, conv_amounts):
+    def tokenize_evaluation(self, users, sequences, behaviors, conv_amount_seq):
         eval_sequence = []
         eval_attention_mask = []
         eval_label = []
         eval_conv_amounts = []
         if self.behavior_token:
             for i in tqdm(range(len(sequences))):
-                input_ids, attention_mask, labels = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i], behaviors[i])
+                input_ids, attention_mask, labels, conv_amounts = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i], conv_amount_seq[i], behaviors[i])
                 eval_sequence.append(input_ids)
                 eval_attention_mask.append(attention_mask)
                 eval_label.append(labels)
-                eval_conv_amounts.append(conv_amounts[i])
+                eval_conv_amounts.append(conv_amounts)
         else:
             for i in tqdm(range(len(sequences))):
-                input_ids, attention_mask, labels = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i])
+                input_ids, attention_mask, labels, conv_amounts = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i], conv_amount_seq[i])
                 eval_sequence.append(input_ids)
                 eval_attention_mask.append(attention_mask)
                 eval_label.append(labels)
-                eval_conv_amounts.append(conv_amounts[i])
-        return {'input_ids': torch.tensor(np.array(eval_sequence), dtype=torch.long), 'attention_mask': torch.tensor(np.array(eval_attention_mask), dtype=torch.long), 'labels': torch.tensor(np.array(eval_label), dtype=torch.long), 'conv_amounts': torch.tensor(np.array(eval_conv_amounts), dtype=torch.float32)}
+                eval_conv_amounts.append(conv_amounts)
+        return {'input_ids': torch.tensor(np.array(eval_sequence), dtype=torch.long), 'attention_mask': torch.tensor(np.array(eval_attention_mask), dtype=torch.long), 'labels': torch.tensor(np.array(eval_label), dtype=torch.long), 'conv_amounts': torch.tensor(np.array(eval_conv_amounts), dtype=torch.int32)}
 
     def tokenize_from_file(self, path):
         user, sequences, behaviors, conv_amount = read_tsv_data(path)

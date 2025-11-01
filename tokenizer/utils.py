@@ -249,7 +249,7 @@ class SequenceGenerator(object):
             return [sequence[0]] + sequence[len(sequence) - (length-2):len(sequence)] + [1]
         return sequence + [1] + [0] * (length - len(sequence) - 1)
 
-    def generate_input_sequence(self, user_id, user_sequence, behavior_seq = None):
+    def generate_input_sequence(self, user_id, user_sequence, conv_amount_seq,behavior_seq = None):
         """
         Generates input IDs, attention mask, and labels for a given user sequence.
         
@@ -263,12 +263,14 @@ class SequenceGenerator(object):
         input_ids = [user_id]
         attention_mask = [1]
         labels = []
+        conv_amount = []
         for i in range(len(user_sequence)):
             if i == len(user_sequence) - 1:
                 if behavior_seq is not None:
                     labels.extend(self.item_2_semantic_id(user_sequence[i], behavior_seq[i]))
                 else:
                     labels.extend(self.item_2_semantic_id(user_sequence[i]))
+                conv_amount.append(conv_amount_seq[i])
             else:
                 if behavior_seq is not None:
                     new_item = self.item_2_semantic_id(user_sequence[i], behavior_seq[i])
@@ -280,38 +282,45 @@ class SequenceGenerator(object):
                     input_ids.extend(new_item)
                 
         labels = np.array(labels + [self.EOS], dtype=np.int32)
+        conv_amount = np.array(conv_amount, dtype=np.int32)
         input_ids = np.array(self.pad_sequence(input_ids, self.max_sequence_length), dtype=np.int32)
         attention_mask = np.array(self.pad_sequence_attention(attention_mask, self.max_sequence_length), dtype=np.int8)
-        return input_ids, attention_mask, labels
+        return input_ids, attention_mask, labels, conv_amount
     
-    def generate_training_sequence(self, user_id, user_sequence, behavior_seq = None, behavior_token=True):
+    def generate_training_sequence(self, user_id, user_sequence, behavior_seq = None, behavior_token=True, conv_amount_seq=None):
         """
         Generates input IDs, attention mask, and labels for a given user sequence. Augment the sequence so it's ready for training.
-        
+
         Args:
             user_id (int): The user ID.
             user_sequence (List[int]): The sequence of user interactions.
-        
+            behavior_seq (List[int]): The sequence of behaviors.
+            behavior_token (bool): Whether to use behavior tokens.
+            conv_amount_seq (List[float]): The sequence of conversion amounts.
+
         Returns:
-            tuple: A tuple of numpy arrays representing input IDs, attention mask, and labels.
+            tuple: A tuple of numpy arrays representing input IDs, attention mask, labels, and conv_amounts.
         """
         train_sequence = []
         train_attention_mask = []
         train_label = []
+        train_conv_amount = []
         if behavior_token:
             for j in range(self.min_sequence_length, len(user_sequence)+1):
-                input_ids, attention_mask, labels = self.generate_input_sequence(user_id, user_sequence[:j], behavior_seq[:j])
+                input_ids, attention_mask, labels, conv_amount = self.generate_input_sequence(user_id, user_sequence[:j], conv_amount_seq[:j],behavior_seq[:j])
                 train_sequence.append(input_ids)
                 train_attention_mask.append(attention_mask)
                 train_label.append(labels)
+                train_conv_amount.append(conv_amount)
         else:
             for j in range(self.min_sequence_length, len(user_sequence)+1):
                 if behavior_seq[j-1] == 1:
-                    input_ids, attention_mask, labels = self.generate_input_sequence(user_id, user_sequence[:j])
+                    input_ids, attention_mask, labels, conv_amount = self.generate_input_sequence(user_id, user_sequence[:j],conv_amount_seq[:j])
                     train_sequence.append(input_ids)
                     train_attention_mask.append(attention_mask)
                     train_label.append(labels)
-        return train_sequence, train_attention_mask, train_label
+                    train_conv_amount.append(conv_amount)
+        return train_sequence, train_attention_mask, train_label, train_conv_amount
 
 def count_lines(file_path):
     """Quickly count the number of lines in a file."""
@@ -335,12 +344,12 @@ def read_tsv_data(file_path):
             user_id = int(row[0])
             item_id_list = list(map(int, row[1].split() + [row[2]]))
             behavior_list = list(map(int, map(float, row[3].split())))
-            conv_amount_list = list(map(float, row[4].split()))
+            conv_amount = list(map(int, row[4].split()))
 
             user_ids.append(user_id)
             sequences.append(item_id_list)
             behavior_sequences.append(behavior_list)
-            conv_amount_sequences.append(conv_amount_list)
+            conv_amount_sequences.append(conv_amount)
     return user_ids, sequences, behavior_sequences, conv_amount_sequences
 
 class random_map(object):

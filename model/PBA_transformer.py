@@ -1,5 +1,6 @@
 from transformers.models.switch_transformers.modeling_switch_transformers import *
 from transformers.models.switch_transformers.configuration_switch_transformers import SwitchTransformersConfig
+from transformers import PreTrainedModel
 import copy
 import math
 import warnings
