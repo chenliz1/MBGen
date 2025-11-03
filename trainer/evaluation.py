@@ -225,6 +225,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         input_ids = batch['input_ids'].to(device).to(torch.long)
         attention_mask = batch['attention_mask'].to(device).to(torch.long)
         labels = batch['labels'].to(device).to(torch.long)
+        conv_amounts = batch['conv_amounts'].to(device).to(torch.int32)
         label_len = labels.shape[1]
         if behavior_token and (not reverse_bt):
             if eval_mode == 'Target':
@@ -254,7 +255,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         if eval_mode == 'Behavior_only':
             outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
             labels = labels[:, :1] # Same
-        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels)
+        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10= calculate_metrics(outputs, labels, conv_amounts)
         recall_at_1s.append(recall_at_1)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
