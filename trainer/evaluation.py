@@ -16,15 +16,14 @@ def ndcg_at_k(r, k):
         return 0.
     return dcg(r) / dcg_max
 
-def revenue_metrics(matches, behavior_col, conv_amount_value):
+def revenue_metrics(matches, conv_amount_value):
     """
-    Calculate hit metrics given matches array, behavior, and conversion amount.
+    Calculate hit metrics given matches array and conversion amount.
 
-    Hit: Prediction where behavior=1 (purchase) AND full sequence matches ground truth.
+    Hit: Prediction where full sequence matches ground truth.
 
     Args:
         matches: numpy array [10] indicating which predictions match ground truth
-        behavior_col: tensor [10] with behavior values for each prediction
         conv_amount_value: scalar conversion amount for this sample
 
     Returns:
@@ -33,28 +32,28 @@ def revenue_metrics(matches, behavior_col, conv_amount_value):
         hit_at_10: bool, whether there's a hit at k=10
         hit_revenue_at_10: float, revenue at k=10 (conv_amount or 0)
     """
-    behavior_is_1 = (behavior_col == 1).cpu().numpy()  # [10]
-    hit_matches = matches & behavior_is_1  # [10]
 
     # Hit at k=1
-    hit_at_1 = hit_matches[:1].sum() > 0
+    hit_at_1 = matches[:1].sum() > 0
     hit_revenue_at_1 = conv_amount_value if hit_at_1 else 0.0
 
     # Hit at k=10
-    hit_at_10 = hit_matches[:10].sum() > 0
+    hit_at_10 = matches[:10].sum() > 0
     hit_revenue_at_10 = conv_amount_value if hit_at_10 else 0.0
 
     return hit_at_1, hit_revenue_at_1, hit_at_10, hit_revenue_at_10
 
-def calculate_metrics(outputs, labels, conv_amount):
+def calculate_metrics(outputs, labels, conv_amount=None, eval_mode='Target'):
     batch_size, k, _ = outputs.shape  # Assuming outputs is [batch_size, 10, seq_len]
     recall_at_1, recall_at_5, recall_at_10 = [], [], []
     ndcg_at_5, ndcg_at_10 = [], []
 
-    hit_count_at_1 = 0
-    hit_count_at_10 = 0
-    total_hit_revenue_at_1 = 0.0
-    total_hit_revenue_at_10 = 0.0
+    # Only compute hit metrics for Target mode
+    if eval_mode == 'Target':
+        hit_count_at_1 = 0
+        hit_count_at_10 = 0
+        total_hit_revenue_at_1 = 0.0
+        total_hit_revenue_at_10 = 0.0
 
     for i in range(batch_size):
         label = labels[i].unsqueeze(0)  # [1, seq_len]
@@ -72,27 +71,38 @@ def calculate_metrics(outputs, labels, conv_amount):
         ndcg_at_5.append(ndcg_at_k(matches, 5))
         ndcg_at_10.append(ndcg_at_k(matches, 10))
 
-        hit_at_1, hit_revenue_at_1, hit_at_10, hit_revenue_at_10 = revenue_metrics(
-            matches, out[:, 0], conv_amount[i].item()
-        )
+        # Hit metrics (only for Target mode)
+        if eval_mode == 'Target':
+            hit_at_1, hit_revenue_at_1, hit_at_10, hit_revenue_at_10 = revenue_metrics(
+                matches, conv_amount[i].item()
+            )
 
-        hit_count_at_1 += int(hit_at_1)
-        hit_count_at_10 += int(hit_at_10)
-        total_hit_revenue_at_1 += hit_revenue_at_1
-        total_hit_revenue_at_10 += hit_revenue_at_10
+            hit_count_at_1 += int(hit_at_1)
+            hit_count_at_10 += int(hit_at_10)
+            total_hit_revenue_at_1 += hit_revenue_at_1
+            total_hit_revenue_at_10 += hit_revenue_at_10
 
     # Calculate mean metrics
-    metrics = (
-        np.mean(recall_at_1),
-        np.mean(recall_at_5),
-        np.mean(recall_at_10),
-        np.mean(ndcg_at_5),
-        np.mean(ndcg_at_10),
-        hit_count_at_1,
-        total_hit_revenue_at_1,
-        hit_count_at_10,
-        total_hit_revenue_at_10,
-    )
+    if eval_mode == 'Target':
+        metrics = (
+            np.mean(recall_at_1),
+            np.mean(recall_at_5),
+            np.mean(recall_at_10),
+            np.mean(ndcg_at_5),
+            np.mean(ndcg_at_10),
+            hit_count_at_1,
+            total_hit_revenue_at_1,
+            hit_count_at_10,
+            total_hit_revenue_at_10,
+        )
+    else:
+        metrics = (
+            np.mean(recall_at_1),
+            np.mean(recall_at_5),
+            np.mean(recall_at_10),
+            np.mean(ndcg_at_5),
+            np.mean(ndcg_at_10),
+        )
 
     return metrics
 
@@ -307,28 +317,25 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         if eval_mode == 'Behavior_only':
             outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
             labels = labels[:, :1] # Same
-        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10, hit_count_at_1, total_hit_revenue_at_1, hit_count_at_10, total_hit_revenue_at_10 = calculate_metrics(outputs, labels, conv_amount)
+
+        if eval_mode == 'Target':
+            recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10, hit_count_at_1, total_hit_revenue_at_1, hit_count_at_10, total_hit_revenue_at_10 = calculate_metrics(outputs, labels, conv_amount, eval_mode)
+            hit_count_at_1_list.append(hit_count_at_1)
+            total_hit_revenue_at_1_list.append(total_hit_revenue_at_1)
+            hit_count_at_10_list.append(hit_count_at_10)
+            total_hit_revenue_at_10_list.append(total_hit_revenue_at_10)
+        else:
+            recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10 = calculate_metrics(outputs, labels, eval_mode=eval_mode)
         recall_at_1s.append(recall_at_1)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
         ndcg_at_5s.append(ndcg_at_5)
         ndcg_at_10s.append(ndcg_at_10)
-        hit_count_at_1_list.append(hit_count_at_1)
-        total_hit_revenue_at_1_list.append(total_hit_revenue_at_1)
-        hit_count_at_10_list.append(hit_count_at_10)
-        total_hit_revenue_at_10_list.append(total_hit_revenue_at_10)
         if not no_output:
             progress_bar.set_description(f"recall@10: {(sum(recall_at_10s) / len(recall_at_10s)):.4f}, NDCG@10: {(sum(ndcg_at_10s) / len(ndcg_at_10s)):.4f}")
             progress_bar.update(1)
     if not no_output:
         progress_bar.close()
-    
-    total_hit_count_at_1 = sum(hit_count_at_1_list)
-    total_hit_revenue_sum_at_1 = sum(total_hit_revenue_at_1_list)
-    total_hit_count_at_10 = sum(hit_count_at_10_list)
-    total_hit_revenue_sum_at_10 = sum(total_hit_revenue_at_10_list)
-    avg_hit_revenue_at_1 = total_hit_revenue_sum_at_1 / total_hit_count_at_1 if total_hit_count_at_1 > 0 else 0.0
-    avg_hit_revenue_at_10 = total_hit_revenue_sum_at_10 / total_hit_count_at_10 if total_hit_count_at_10 > 0 else 0.0
 
     print(f"Validation Loss: {sum(losses) / len(losses)}")
     print(f"recall@1: {sum(recall_at_1s) / len(recall_at_1s)}")
@@ -337,14 +344,37 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
     print(f"Distinct matched items count: {len(matched_items)}")
-    print(f"Hit Count @1: {total_hit_count_at_1}")
-    print(f"Total Hit Revenue @1: {total_hit_revenue_sum_at_1}")
-    print(f"Average Hit Revenue @1: {avg_hit_revenue_at_1}")
-    print(f"Hit Count @10: {total_hit_count_at_10}")
-    print(f"Total Hit Revenue @10: {total_hit_revenue_sum_at_10}")
-    print(f"Average Hit Revenue @10: {avg_hit_revenue_at_10}")
-    model.train()
-    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), len(matched_items), total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10
+
+    
+
+    if eval_mode == 'Target':
+        # Calculate hit metrics
+        total_hit_count_at_1 = sum(hit_count_at_1_list)
+        total_hit_revenue_sum_at_1 = sum(total_hit_revenue_at_1_list)
+        total_hit_count_at_10 = sum(hit_count_at_10_list)
+        total_hit_revenue_sum_at_10 = sum(total_hit_revenue_at_10_list)
+        avg_hit_revenue_at_1 = total_hit_revenue_sum_at_1 / total_hit_count_at_1 if total_hit_count_at_1 > 0 else 0.0
+        avg_hit_revenue_at_10 = total_hit_revenue_sum_at_10 / total_hit_count_at_10 if total_hit_count_at_10 > 0 else 0.0
+
+        print(f"Hit Count @1: {total_hit_count_at_1}")
+        print(f"Total Hit Revenue @1: {total_hit_revenue_sum_at_1}")
+        print(f"Average Hit Revenue @1: {avg_hit_revenue_at_1}")
+        print(f"Hit Count @10: {total_hit_count_at_10}")
+        print(f"Total Hit Revenue @10: {total_hit_revenue_sum_at_10}")
+        print(f"Average Hit Revenue @10: {avg_hit_revenue_at_10}")
+        model.train()
+        return (sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s),
+                sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s),
+                sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses),
+                len(matched_items), total_hit_count_at_1, total_hit_revenue_sum_at_1,
+                avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10,
+                avg_hit_revenue_at_10)
+    else:
+        model.train()
+        return (sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s),
+                sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s),
+                sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses),
+                len(matched_items))
 
 def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Target', no_output=False, behavior_token = True, reverse_bt = False):
     model.eval()
@@ -371,7 +401,6 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
         input_ids = batch['input_ids'].to(device).to(torch.long)
         attention_mask = batch['attention_mask'].to(device).to(torch.long)
         labels = batch['labels'].to(device).to(torch.long)
-        conv_amount = batch['conv_amount'].to(device).to(torch.int32)
         label_len = labels.shape[1]
 
         decoder_input = torch.zeros(batch_size, 1, device=input_ids.device, dtype=torch.long)
@@ -391,16 +420,12 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
         for idx in matched_indices:
             matched_items.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
 
-        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10, hit_count_at_1, total_hit_revenue_at_1, hit_count_at_10, total_hit_revenue_at_10 = calculate_metrics(outputs, labels, conv_amount)
+        recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10 = calculate_metrics(outputs, labels, eval_mode=eval_mode)
         recall_at_1s.append(recall_at_1)
         recall_at_5s.append(recall_at_5)
         recall_at_10s.append(recall_at_10)
         ndcg_at_5s.append(ndcg_at_5)
         ndcg_at_10s.append(ndcg_at_10)
-        hit_count_at_1_list.append(hit_count_at_1)
-        total_hit_revenue_at_1_list.append(total_hit_revenue_at_1)
-        hit_count_at_10_list.append(hit_count_at_10)
-        total_hit_revenue_at_10_list.append(total_hit_revenue_at_10)
 
 
         outputs_bt = outputs[:, 0, 0]
@@ -430,10 +455,6 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
     print(f"Distinct matched items count: {len(matched_items)}")
-    print(f"Hit Count @1: {total_hit_count_at_1}")
-    print(f"Average Hit Revenue @1: {avg_hit_revenue_at_1}")
-    print(f"Hit Count @10: {total_hit_count_at_10}")
-    print(f"Average Hit Revenue @10: {avg_hit_revenue_at_10}")
     print("--- Behavior-only evaluation ---")
     accuracy = total_correct / total_samples if total_samples > 0 else 0.0
     precision = total_true_positives / total_predicted_positives if total_predicted_positives > 0 else 0.0
