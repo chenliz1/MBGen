@@ -113,15 +113,22 @@ class TIGERTrainer(object):
             perf = {}
             if (epoch + 1) % self.epochs_per_eval == 0 and (not self.reverse_bt):
                 if self.model is torch.nn.DataParallel:
-                    recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc = evaluate(self.model.module, validation_dataloader, self.device, self.item_len, eval_mode = 'Target', no_output=self.no_output, behavior_token=self.behavior_token)
+                    recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc, total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10 = evaluate(self.model.module, validation_dataloader, self.device, self.item_len, eval_mode = 'Target', no_output=self.no_output, behavior_token=self.behavior_token)
                 else:
-                    recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc = evaluate(self.model, validation_dataloader, self.device, self.item_len, eval_mode = 'Target', no_output=self.no_output, behavior_token=self.behavior_token)
+                    recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc, total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10 = evaluate(self.model, validation_dataloader, self.device, self.item_len, eval_mode = 'Target', no_output=self.no_output, behavior_token=self.behavior_token)
                 perf["Recall@1(target)"] = recall_1
                 perf['Recall@5(target)'] = recall_5
                 perf['Recall@10(target)'] = recall_10
                 perf['NDCG@5(target)'] = ndcg_5
                 perf['NDCG@10(target)'] = ndcg_10
                 perf['DPC(target)'] = dpc
+                perf['Hit_Count@1(target)'] = total_hit_count_at_1
+                perf['Total_Hit_Revenue@1(target)'] = total_hit_revenue_sum_at_1
+                perf['Avg_Hit_Revenue@1(target)'] = avg_hit_revenue_at_1
+                perf['Hit_Count@10(target)'] = total_hit_count_at_10
+                perf['Total_Hit_Revenue@10(target)'] = total_hit_revenue_sum_at_10
+                perf['Avg_Hit_Revenue@10(target)'] = avg_hit_revenue_at_10
+              
                 self.writer.add_scalar('Loss/validation_loss', eval_loss, epoch)
                 self.writer.add_scalar('Metrics/Recall@1', recall_1, epoch)
                 self.writer.add_scalar('Metrics/Recall@5', recall_5, epoch)
@@ -129,6 +136,13 @@ class TIGERTrainer(object):
                 self.writer.add_scalar('Metrics/NDCG@5', ndcg_5, epoch)
                 self.writer.add_scalar('Metrics/NDCG@10', ndcg_10, epoch)
                 self.writer.add_scalar('Metrics/DPC', dpc, epoch)
+                self.writer.add_scalar('Metrics/Hit_Count@1', total_hit_count_at_1, epoch)
+                self.writer.add_scalar('Metrics/Total_Hit_Revenue@1', total_hit_revenue_sum_at_1, epoch)
+                self.writer.add_scalar('Metrics/Avg_Hit_Revenue@1', avg_hit_revenue_at_1, epoch)
+                self.writer.add_scalar('Metrics/Hit_Count@10', total_hit_count_at_10, epoch)
+                self.writer.add_scalar('Metrics/Total_Hit_Revenue@10', total_hit_revenue_sum_at_10, epoch)
+                self.writer.add_scalar('Metrics/Avg_Hit_Revenue@10', avg_hit_revenue_at_10, epoch)
+              
                 if ndcg_10 > best_ndcg_10 and (not self.behavior_token):
                         self.best_performance = perf
                         best_ndcg_10 = ndcg_10
@@ -144,9 +158,9 @@ class TIGERTrainer(object):
                     if not self.reverse_bt:
                         # Evaluate Behavior-Specific prediction
                         if self.model is torch.nn.DataParallel:
-                            recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc = evaluate(self.model.module, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_specific')
+                            recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc, total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10 = evaluate(self.model.module, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_specific')
                         else:
-                            recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc = evaluate(self.model, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_specific')
+                            recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc,total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10 = evaluate(self.model, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_specific')
                         self.writer.add_scalar('Loss/validation_loss_behavior_specific', eval_loss, epoch)
                         self.writer.add_scalar('Metrics/DPC_behavior_specific', dpc, epoch)
                         self.writer.add_scalar('Metrics/Recall@1_behavior_specific', recall_1, epoch)
@@ -154,18 +168,31 @@ class TIGERTrainer(object):
                         self.writer.add_scalar('Metrics/Recall@10_behavior_specific', recall_10, epoch)
                         self.writer.add_scalar('Metrics/NDCG@5_behavior_specific', ndcg_5, epoch)
                         self.writer.add_scalar('Metrics/NDCG@10_behavior_specific', ndcg_10, epoch)
+                        self.writer.add_scalar('Metrics/Hit_Count@1_behavior_specific', total_hit_count_at_1, epoch)
+                        self.writer.add_scalar('Metrics/Total_Hit_Revenue@1_behavior_specific', total_hit_revenue_sum_at_1, epoch)
+                        self.writer.add_scalar('Metrics/Avg_Hit_Revenue@1_behavior_specific', avg_hit_revenue_at_1, epoch)
+                        self.writer.add_scalar('Metrics/Hit_Count@10_behavior_specific', total_hit_count_at_10,     epoch)
+                        self.writer.add_scalar('Metrics/Total_Hit_Revenue@10_behavior_specific', total_hit_revenue_sum_at_10, epoch)
+                        self.writer.add_scalar('Metrics/Avg_Hit_Revenue@10_behavior_specific', avg_hit_revenue_at_10, epoch)              
                         perf['Recall@1_behavior_specific'] = recall_1
                         perf['Recall@5_behavior_specific'] = recall_5
                         perf['Recall@10_behavior_specific'] = recall_10
                         perf['NDCG@5_behavior_specific'] = ndcg_5
                         perf['NDCG@10_behavior_specific'] = ndcg_10
                         perf['DPC_behavior_specific'] = dpc
+                        perf['Hit_Count@1_behavior_specific'] = total_hit_count_at_1
+                        perf['Total_Hit_Revenue@1_behavior_specific'] = total_hit_revenue_sum_at_1
+                        perf['Avg_Hit_Revenue@1_behavior_specific'] = avg_hit_revenue_at_1
+                        perf['Hit_Count@10_behavior_specific'] = total_hit_count_at_10
+                        perf['Total_Hit_Revenue@10_behavior_specific'] = total_hit_revenue_sum_at_10
+                        perf['Avg_Hit_Revenue@10_behavior_specific'] = avg_hit_revenue_at_10
+
 
                         # Evaluate Behavior-Item prediction
                     if self.model is torch.nn.DataParallel:
-                        recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc, acc_bt, recall_bt, precision_bt, tf_bt = evaluate_in_train(self.model.module, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
+                        recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc, total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10,acc_bt, recall_bt, precision_bt, tf_bt = evaluate_in_train(self.model.module, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
                     else:
-                        recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc, acc_bt, recall_bt, precision_bt, tf_bt = evaluate_in_train(self.model, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
+                        recall_1, recall_5,recall_10,ndcg_5,ndcg_10, eval_loss, dpc,total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10, acc_bt, recall_bt, precision_bt, tf_bt = evaluate_in_train(self.model, validation_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode = 'Behavior_item', reverse_bt = self.reverse_bt)
                     self.writer.add_scalar('Loss/validation_loss_all', eval_loss, epoch)
                     self.writer.add_scalar('Metrics/DPC_all', dpc, epoch)
                     self.writer.add_scalar('Metrics/Recall@1_all', recall_1, epoch)
@@ -173,6 +200,12 @@ class TIGERTrainer(object):
                     self.writer.add_scalar('Metrics/Recall@10_all', recall_10, epoch)
                     self.writer.add_scalar('Metrics/NDCG@5_all', ndcg_5, epoch)
                     self.writer.add_scalar('Metrics/NDCG@10_all', ndcg_10, epoch)
+                    self.writer.add_scalar('Metrics/Hit_Count@1_all', total_hit_count_at_1, epoch)
+                    self.writer.add_scalar('Metrics/Total_Hit_Revenue@1_all', total_hit_revenue_sum_at_1, epoch)
+                    self.writer.add_scalar('Metrics/Avg_Hit_Revenue@1_all', avg_hit_revenue_at_1, epoch)
+                    self.writer.add_scalar('Metrics/Hit_Count@10_all', total_hit_count_at_10, epoch)
+                    self.writer.add_scalar('Metrics/Total_Hit_Revenue@10_all', total_hit_revenue_sum_at_10, epoch)
+                    self.writer.add_scalar('Metrics/Avg_Hit_Revenue@10_all', avg_hit_revenue_at_10, epoch)
                     self.writer.add_scalar('Metrics/Accuracy_behavior_only', acc_bt, epoch)
                     self.writer.add_scalar('Metrics/Recall_behavior_only', recall_bt, epoch)
                     self.writer.add_scalar('Metrics/Precision_behavior_only', precision_bt, epoch)
@@ -183,6 +216,12 @@ class TIGERTrainer(object):
                     perf['Recall@10_all'] = recall_10
                     perf['NDCG@5_all'] = ndcg_5
                     perf['NDCG@10_all'] = ndcg_10
+                    perf['Hit_Count@1_all'] = total_hit_count_at_1
+                    perf['Total_Hit_Revenue@1_all'] = total_hit_revenue_sum_at_1
+                    perf['Avg_Hit_Revenue@1_all'] = avg_hit_revenue_at_1
+                    perf['Hit_Count@10_all'] = total_hit_count_at_10
+                    perf['Total_Hit_Revenue@10_all'] = total_hit_revenue_sum_at_10
+                    perf['Avg_Hit_Revenue@10_all'] = avg_hit_revenue_at_10
                     perf['Accuracy_behavior_only'] = acc_bt
                     perf['Recall_behavior_only'] = recall_bt
                     perf['Precision_behavior_only'] = precision_bt
@@ -218,7 +257,7 @@ class TIGERTrainer(object):
         
         # Evaluate on test dataset
         if not self.reverse_bt:
-            recall_1, recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, dpc = evaluate(self.model, test_dataloader, self.device, self.item_len, eval_mode='Target', no_output=self.no_output, behavior_token=self.behavior_token, num_beams= num_beams)
+            recall_1, recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, dpc, total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10 = evaluate(self.model, test_dataloader, self.device, self.item_len, eval_mode='Target', no_output=self.no_output, behavior_token=self.behavior_token, num_beams= num_beams)
             results['Test Loss(target)'] = eval_loss
             results['DPC(target)'] = dpc
             results['Recall@1(target)'] = recall_1
@@ -226,6 +265,12 @@ class TIGERTrainer(object):
             results['Recall@10(target)'] = recall_10
             results['NDCG@5(target)'] = ndcg_5
             results['NDCG@10(target)'] = ndcg_10
+            results['Hit_Count@1(target)'] = total_hit_count_at_1
+            results['Total_Hit_Revenue@1(target)'] = total_hit_revenue_sum_at_1
+            results['Avg_Hit_Revenue@1(target)'] = avg_hit_revenue_at_1
+            results['Hit_Count@10(target)'] = total_hit_count_at_10
+            results['Total_Hit_Revenue@10(target)'] = total_hit_revenue_sum_at_10
+            results['Avg_Hit_Revenue@10(target)'] = avg_hit_revenue_at_10
 
         print("Target Evaluation Metrics:")
         for key, value in results.items():
@@ -233,7 +278,7 @@ class TIGERTrainer(object):
         if self.behavior_token:
             # Evaluate on all behavioral data
             if not self.reverse_bt:
-                recall_1, recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, dpc = evaluate(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_specific', num_beams= num_beams)
+                recall_1, recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, dpc, total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10 = evaluate(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_specific', num_beams= num_beams)
                 results['Test Loss (Behavior_specific)'] = eval_loss
                 results['DPC (Behavior_specific)'] = dpc
                 results['Recall@1 (Behavior_specific)'] = recall_1
@@ -241,6 +286,13 @@ class TIGERTrainer(object):
                 results['Recall@10 (Behavior_specific)'] = recall_10
                 results['NDCG@5 (Behavior_specific)'] = ndcg_5
                 results['NDCG@10 (Behavior_specific)'] = ndcg_10
+                results['Hit_Count@1 (Behavior_specific)'] = total_hit_count_at_1
+                results['Total_Hit_Revenue@1 (Behavior_specific)'] = total_hit_revenue_sum_at_1
+                results['Avg_Hit_Revenue@1 (Behavior_specific)'] = avg_hit_revenue_at_1
+                results['Hit_Count@10 (Behavior_specific)'] = total_hit_count_at_10
+                results['Total_Hit_Revenue@10 (Behavior_specific)'] = total_hit_revenue_sum_at_10
+                results['Avg_Hit_Revenue@10 (Behavior_specific)'] = avg_hit_revenue_at_10
+
 
                 print("Behavior-specific Evaluation Metrics:")
                 for key, value in results.items():
@@ -248,7 +300,7 @@ class TIGERTrainer(object):
                         print(f"{key}: {value}")
 
             # Evaluate on behavior item data
-            recall_1, recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, dpc, acc_bt, recall_bt, precision_bt, tf_bt = evaluate_in_train(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_item', num_beams= num_beams, reverse_bt = self.reverse_bt)
+            recall_1, recall_5, recall_10, ndcg_5, ndcg_10, eval_loss, dpc,total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10, acc_bt, recall_bt, precision_bt, tf_bt = evaluate_in_train(self.model, test_all_dataloader, self.device, self.item_len, no_output=self.no_output, eval_mode='Behavior_item', num_beams= num_beams, reverse_bt = self.reverse_bt)
             results['Test Loss (Behavior_item)'] = eval_loss
             results['DPC (Behavior_item)'] = dpc
             results['Recall@1 (Behavior_item)'] = recall_1
@@ -256,6 +308,12 @@ class TIGERTrainer(object):
             results['Recall@10 (Behavior_item)'] = recall_10
             results['NDCG@5 (Behavior_item)'] = ndcg_5
             results['NDCG@10 (Behavior_item)'] = ndcg_10
+            results['Hit_Count@1 (Behavior_item)'] = total_hit_count_at_1
+            results['Total_Hit_Revenue@1 (Behavior_item)'] = total_hit_revenue_sum_at_1
+            results['Avg_Hit_Revenue@1 (Behavior_item)'] = avg_hit_revenue_at_1
+            results['Hit_Count@10 (Behavior_item)'] = total_hit_count_at_10
+            results['Total_Hit_Revenue@10 (Behavior_item)'] = total_hit_revenue_sum_at_10
+            results['Avg_Hit_Revenue@10 (Behavior_item)'] = avg_hit_revenue_at_10
             results['Accuracy (Behavior_only)'] = acc_bt
             results['Recall (Behavior_only)'] = recall_bt
             results['Precision (Behavior_only)'] = precision_bt
