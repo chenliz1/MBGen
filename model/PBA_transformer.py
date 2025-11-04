@@ -1,30 +1,13 @@
+from transformers.models.switch_transformers.modeling_switch_transformers import *
+from transformers.models.switch_transformers.configuration_switch_transformers import SwitchTransformersConfig
 import copy
+import math
+import warnings
 from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
-
-from transformers import PreTrainedModel
-from transformers.activations import ACT2FN
-from transformers.models.switch_transformers.configuration_switch_transformers import SwitchTransformersConfig
-from transformers.models.switch_transformers.modeling_switch_transformers import (
-    SwitchTransformersLayerSelfAttention,
-    SwitchTransformersLayerNorm,
-    SwitchTransformersLayerCrossAttention,
-    SwitchTransformersAttention,
-    DUMMY_INPUTS,
-    DUMMY_MASK,
-)
-from transformers.modeling_outputs import (
-    MoEModelOutputWithPastAndCrossAttentions,
-    MoEModelOutput,
-    Seq2SeqMoEOutput,
-)
-from transformers.utils import logging
-from torch.fx import Proxy as is_torch_fx_proxy
-
-logger = logging.get_logger(__name__)
 
 # Position and Behavior Aware Transformer (PBATransformer)
 class PBATransformerConfig(SwitchTransformersConfig):
