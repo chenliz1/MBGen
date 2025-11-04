@@ -10,10 +10,10 @@ def dpc(labels, outputs):
         outputs (torch.Tensor): The model outputs of shape (batch_size, k, seq_len).
     Returns:
         tuple: A tuple containing:
-            - int: Number of unique correct item sequences at k=1.
-            - int: Number of unique correct item sequences at k=10.
-            - int: Total number of unique predicted item sequences at k=1.
-            - int: Total number of unique predicted item sequences at k=10.
+            - set: Unique correct item sequences at k=1.
+            - set: Unique correct item sequences at k=10.
+            - set: Total unique predicted item sequences at k=1.
+            - set: Total unique predicted item sequences at k=10.
     """
     # Get index of matched items where outputs[:, 0, 1:] == labels[:, 1:], add all item tensors labels[:, 1:] to matched_items set
     matched_items_1 = set()
@@ -27,15 +27,14 @@ def dpc(labels, outputs):
     for idx in matched_indices_10:
         matched_items_10.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
 
-    all_dpc_1=set()
-    all_dpc_10=set()
-    #find all unique items in outputs[:, :, 1:] at k=1 and k=10
+    all_dpc_1 = set()
+    all_dpc_10 = set()
     for i in range(outputs.shape[0]):
         all_dpc_1.add(tuple(outputs[i, 0, 1:].cpu().numpy().tolist()))
         for j in range(10):
             all_dpc_10.add(tuple(outputs[i, j, 1:].cpu().numpy().tolist()))
 
-    return len(matched_items_1), len(matched_items_10), len(all_dpc_1), len(all_dpc_10)
+    return matched_items_1, matched_items_10, all_dpc_1, all_dpc_10
 
 
 
@@ -317,6 +316,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     total_hit_revenue_at_1_list = []
     hit_count_at_10_list = []
     total_hit_revenue_at_10_list = []
+    dpc_1_set, dpc_10_set, total_1_set, total_10_set = set(), set(), set(), set()
     if not no_output:
         progress_bar = tqdm(range(len(dataloader)))
     for batch in dataloader:
@@ -346,7 +346,11 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
 
-        dpc_1, dpc_10, total_1, total_10 = dpc(labels, outputs)
+        batch_dpc_1, batch_dpc_10, batch_total_1, batch_total_10 = dpc(labels, outputs)
+        dpc_1_set.update(batch_dpc_1)
+        dpc_10_set.update(batch_dpc_10)
+        total_1_set.update(batch_total_1)
+        total_10_set.update(batch_total_10)
         # Add this for Behavior_only mode:
         if eval_mode == 'Behavior_only':
             outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
@@ -377,12 +381,12 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
-    print(f"Distinct matched items count at 1: {dpc_1}")
-    print(f"Distinct matched items count at 10: {dpc_10}")
-    print(f"Total unique predicted items count at 1: {total_1}")
-    print(f"Total unique predicted items count at 10: {total_10}")
+    print(f"Distinct matched items count at 1: {len(dpc_1_set)}")
+    print(f"Distinct matched items count at 10: {len(dpc_10_set)}")
+    print(f"Total unique predicted items count at 1: {len(total_1_set)}")
+    print(f"Total unique predicted items count at 10: {len(total_10_set)}")
 
-    
+
 
     if eval_mode == 'Target':
         # Calculate hit metrics
@@ -403,7 +407,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         return (sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s),
                 sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s),
                 sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses),
-                dpc_1,dpc_10,total_1,total_10, total_hit_count_at_1, total_hit_revenue_sum_at_1,
+                len(dpc_1_set), len(dpc_10_set), len(total_1_set), len(total_10_set), total_hit_count_at_1, total_hit_revenue_sum_at_1,
                 avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10,
                 avg_hit_revenue_at_10)
     else:
@@ -411,7 +415,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         return (sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s),
                 sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s),
                 sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses),
-                dpc_1,dpc_10,total_1,total_10,)
+                len(dpc_1_set), len(dpc_10_set), len(total_1_set), len(total_10_set),)
 
 def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Target', no_output=False, behavior_token = True, reverse_bt = False):
     model.eval()
@@ -426,6 +430,7 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     total_true_positives = 0
     total_predicted_positives = 0
     total_actual_positives = 0
+    dpc_1, dpc_10, total_1, total_10 = set(), set(), set(), set()
     if not no_output:
         progress_bar = tqdm(range(len(dataloader)))
     for batch in dataloader:
@@ -447,7 +452,11 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
 
-        dpc_1, dpc_10, total_1, total_10 = dpc(labels, outputs)
+        batch_dpc_1, batch_dpc_10, batch_total_1, batch_total_10 = dpc(labels, outputs)
+        dpc_1.update(batch_dpc_1)
+        dpc_10.update(batch_dpc_10)
+        total_1.update(batch_total_1)
+        total_10.update(batch_total_10)
 
         recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10 = calculate_metrics(outputs, labels, eval_mode=eval_mode)
         recall_at_1s.append(recall_at_1)
@@ -477,10 +486,10 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
-    print(f"Distinct matched items count at 1: {dpc_1}")
-    print(f"Distinct matched items count at 10: {dpc_10}")
-    print(f"Total unique predicted items count at 1: {total_1}")
-    print(f"Total unique predicted items count at 10: {total_10}")
+    print(f"Distinct matched items count at 1: {len(dpc_1)}")
+    print(f"Distinct matched items count at 10: {len(dpc_10)}")
+    print(f"Total unique predicted items count at 1: {len(total_1)}")
+    print(f"Total unique predicted items count at 10: {len(total_10)}")
     print("--- Behavior-only evaluation ---")
     accuracy = total_correct / total_samples if total_samples > 0 else 0.0
     precision = total_true_positives / total_predicted_positives if total_predicted_positives > 0 else 0.0
@@ -495,4 +504,4 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"Precision (Behavior_only): {precision}")
 
     model.train()
-    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), dpc_1, dpc_10, total_1, total_10, recall, precision, total_true_positives
+    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), len(dpc_1), len(dpc_10), len(total_1), len(total_10), recall, precision, total_true_positives
