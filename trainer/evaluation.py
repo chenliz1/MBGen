@@ -504,4 +504,19 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"Precision (Behavior_only): {precision}")
 
     model.train()
-    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), len(dpc_1), len(dpc_10), len(total_1), len(total_10), recall, precision, total_true_positives
+    return (
+        sum(recall_at_1s) / len(recall_at_1s), 
+        sum(recall_at_5s) / len(recall_at_5s), 
+        sum(recall_at_10s) / len(recall_at_10s), 
+        sum(ndcg_at_5s) / len(ndcg_at_5s), 
+        sum(ndcg_at_10s) / len(ndcg_at_10s), 
+        sum(losses) / len(losses), 
+        len(dpc_1), 
+        len(dpc_10), 
+        len(total_1), 
+        len(total_10), 
+        accuracy,
+        recall, 
+        precision, 
+        total_true_positives
+    )
