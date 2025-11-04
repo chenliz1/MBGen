@@ -3,6 +3,42 @@ import torch
 from tqdm import tqdm
 import torch.nn.functional as F
 
+def dpc(labels, outputs):
+    """Calculate the Distinct Purchased Creatives (DPC) metric.
+    Args:
+        labels (torch.Tensor): The ground truth labels of shape (batch_size, seq_len).
+        outputs (torch.Tensor): The model outputs of shape (batch_size, k, seq_len).
+    Returns:
+        tuple: A tuple containing:
+            - int: Number of unique correct item sequences at k=1.
+            - int: Number of unique correct item sequences at k=10.
+            - int: Total number of unique predicted item sequences at k=1.
+            - int: Total number of unique predicted item sequences at k=10.
+    """
+    # Get index of matched items where outputs[:, 0, 1:] == labels[:, 1:], add all item tensors labels[:, 1:] to matched_items set
+    matched_items_1 = set()
+    matched_indices_1 = torch.where(torch.all(outputs[:, 0, 1:] == labels[:, 1:], dim=1))[0]
+    for idx in matched_indices_1:
+        matched_items_1.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
+
+    # At k=10
+    matched_items_10 = set()
+    matched_indices_10 = torch.where(torch.any(torch.all(outputs[:, :10, 1:] == labels[:, 1:].unsqueeze(1), dim=2), dim=1))[0]
+    for idx in matched_indices_10:
+        matched_items_10.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
+
+    all_dpc_1=set()
+    all_dpc_10=set()
+    #find all unique items in outputs[:, :, 1:] at k=1 and k=10
+    for i in range(outputs.shape[0]):
+        all_dpc_1.add(tuple(outputs[i, 0, 1:].cpu().numpy().tolist()))
+        for j in range(10):
+            all_dpc_10.add(tuple(outputs[i, j, 1:].cpu().numpy().tolist()))
+
+    return len(matched_items_1), len(matched_items_10), len(all_dpc_1), len(all_dpc_10)
+
+
+
 def dcg(scores):
     """Compute the Discounted Cumulative Gain."""
     scores = np.asarray(scores, dtype=np.float32)  # Ensure scores is an array of floats
@@ -23,7 +59,7 @@ def revenue_metrics(matches, conv_amount_value):
     Hit: Prediction where full sequence matches ground truth.
 
     Args:
-        matches: numpy array [10] indicating which predictions match ground truth
+        matches: numpy array indicating which predictions match ground truth
         conv_amount_value: scalar conversion amount for this sample
 
     Returns:
@@ -76,6 +112,8 @@ def calculate_metrics(outputs, labels, conv_amount=None, eval_mode='Target'):
             hit_at_1, hit_revenue_at_1, hit_at_10, hit_revenue_at_10 = revenue_metrics(
                 matches, conv_amount[i].item()
             )
+
+            matches, labels
 
             hit_count_at_1 += int(hit_at_1)
             hit_count_at_10 += int(hit_at_10)
@@ -279,7 +317,6 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     total_hit_revenue_at_1_list = []
     hit_count_at_10_list = []
     total_hit_revenue_at_10_list = []
-    matched_items = set()
     if not no_output:
         progress_bar = tqdm(range(len(dataloader)))
     for batch in dataloader:
@@ -309,10 +346,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
 
-        # Get index of matched items where outputs[:, 0, 1:] == labels[:, 1:], add all item tensors labels[:, 1:] to matched_items set
-        matched_indices = torch.where(torch.all(outputs[:, 0, 1:] == labels[:, 1:], dim=1))[0]
-        for idx in matched_indices:
-            matched_items.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
+        dpc_1, dpc_10, total_1, total_10 = dpc(labels, outputs)
         # Add this for Behavior_only mode:
         if eval_mode == 'Behavior_only':
             outputs = outputs[:, :, :1]  # Keep only first token (behavior), the rest are item tokens
@@ -343,7 +377,10 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
     print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
-    print(f"Distinct matched items count: {len(matched_items)}")
+    print(f"Distinct matched items count at 1: {dpc_1}")
+    print(f"Distinct matched items count at 10: {dpc_10}")
+    print(f"Total unique predicted items count at 1: {total_1}")
+    print(f"Total unique predicted items count at 10: {total_10}")
 
     
 
@@ -366,7 +403,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         return (sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s),
                 sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s),
                 sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses),
-                len(matched_items), total_hit_count_at_1, total_hit_revenue_sum_at_1,
+                dpc_1,dpc_10,total_1,total_10, total_hit_count_at_1, total_hit_revenue_sum_at_1,
                 avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10,
                 avg_hit_revenue_at_10)
     else:
@@ -374,7 +411,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         return (sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s),
                 sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s),
                 sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses),
-                len(matched_items))
+                dpc_1,dpc_10,total_1,total_10,)
 
 def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Target', no_output=False, behavior_token = True, reverse_bt = False):
     model.eval()
@@ -384,11 +421,6 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     ndcg_at_5s = []
     ndcg_at_10s = []
     losses = []
-    hit_count_at_1_list = []
-    total_hit_revenue_at_1_list = []
-    hit_count_at_10_list = []
-    total_hit_revenue_at_10_list = []
-    matched_items = set()
     total_correct = 0
     total_samples = 0
     total_true_positives = 0
@@ -415,10 +447,7 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
         outputs = outputs[:, 1:-1].reshape(batch_size, 10, -1)  # Remove BOS and EOS
         labels = labels[:,:-1] # Remove EOS
 
-        # Get index of matched items where outputs[:, 0, 1:] == labels[:, 1:], add all item tensors labels[:, 1:] to matched_items set
-        matched_indices = torch.where(torch.all(outputs[:, 0, 1:] == labels[:, 1:], dim=1))[0]
-        for idx in matched_indices:
-            matched_items.add(tuple(labels[idx, 1:].cpu().numpy().tolist()))
+        dpc_1, dpc_10, total_1, total_10 = dpc(labels, outputs)
 
         recall_at_1, recall_at_5, recall_at_10, ndcg_at_5, ndcg_at_10 = calculate_metrics(outputs, labels, eval_mode=eval_mode)
         recall_at_1s.append(recall_at_1)
@@ -442,19 +471,16 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
             progress_bar.update(1)
     if not no_output:
         progress_bar.close()
-    total_hit_count_at_1 = sum(hit_count_at_1_list)
-    total_hit_revenue_sum_at_1 = sum(total_hit_revenue_at_1_list)
-    total_hit_count_at_10 = sum(hit_count_at_10_list)
-    total_hit_revenue_sum_at_10 = sum(total_hit_revenue_at_10_list)
-    avg_hit_revenue_at_1 = total_hit_revenue_sum_at_1 / total_hit_count_at_1 if total_hit_count_at_1 > 0 else 0.0
-    avg_hit_revenue_at_10 = total_hit_revenue_sum_at_10 / total_hit_count_at_10 if total_hit_count_at_10 > 0 else 0.0
     print(f"Validation Loss: {sum(losses) / len(losses)}")
     print(f"recall@1: {sum(recall_at_1s) / len(recall_at_1s)}")
     print(f"recall@5: {sum(recall_at_5s) / len(recall_at_5s)}")
     print(f"recall@10: {sum(recall_at_10s) / len(recall_at_10s)}")
     print(f"NDCG@5: {sum(ndcg_at_5s) / len(ndcg_at_5s)}")
     print(f"NDCG@10: {sum(ndcg_at_10s) / len(ndcg_at_10s)}")
-    print(f"Distinct matched items count: {len(matched_items)}")
+    print(f"Distinct matched items count at 1: {dpc_1}")
+    print(f"Distinct matched items count at 10: {dpc_10}")
+    print(f"Total unique predicted items count at 1: {total_1}")
+    print(f"Total unique predicted items count at 10: {total_10}")
     print("--- Behavior-only evaluation ---")
     accuracy = total_correct / total_samples if total_samples > 0 else 0.0
     precision = total_true_positives / total_predicted_positives if total_predicted_positives > 0 else 0.0
@@ -469,4 +495,4 @@ def evaluate_in_train(model, dataloader, device, item_len, num_beams=10, eval_mo
     print(f"Precision (Behavior_only): {precision}")
 
     model.train()
-    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), len(matched_items), total_hit_count_at_1, total_hit_revenue_sum_at_1, avg_hit_revenue_at_1, total_hit_count_at_10, total_hit_revenue_sum_at_10, avg_hit_revenue_at_10, recall, precision, total_true_positives
+    return sum(recall_at_1s) / len(recall_at_1s), sum(recall_at_5s) / len(recall_at_5s), sum(recall_at_10s) / len(recall_at_10s), sum(ndcg_at_5s) / len(ndcg_at_5s), sum(ndcg_at_10s) / len(ndcg_at_10s), sum(losses) / len(losses), dpc_1, dpc_10, total_1, total_10, recall, precision, total_true_positives
