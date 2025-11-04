@@ -22,6 +22,7 @@ class CustomDataset(Dataset):
         data['input_ids'] = data['input_ids'].to(torch.int32)
         data['attention_mask'] = data['attention_mask'].to(torch.int8)
         data['labels'] = data['labels'].to(torch.int32)
+        data['conv_amount'] = data['conv_amount'].to(torch.int32)
         self.data = data
 
     def __len__(self):

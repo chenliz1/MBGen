@@ -20,19 +20,21 @@ def custom_chunk(data, num_chunks):
         chunks = chunks[:-2] + [last_chunk]
     return chunks
 
-def process_chunk(user_chunk, sequence_chunk, behavior_chunk, num_user_tokens, id_offsets, sequence_generator, behavior_token=True):
-    train_sequence, train_attention_mask, train_label = [], [], []
+def process_chunk(user_chunk, sequence_chunk, behavior_chunk, conv_amount_chunk, num_user_tokens, id_offsets, sequence_generator, behavior_token=True):
+    train_sequence, train_attention_mask, train_label, train_conv_amount = [], [], [], []
     for i in range(len(user_chunk)):
-        input_ids, attention_mask, labels = sequence_generator.generate_training_sequence(
+        input_ids, attention_mask, labels, conv_amounts = sequence_generator.generate_training_sequence(
             user_chunk[i] % num_user_tokens + id_offsets[-1],
             sequence_chunk[i],
             behavior_chunk[i],
-            behavior_token
+            behavior_token,
+            conv_amount_chunk[i]
         )
         train_sequence.extend(input_ids)
         train_attention_mask.extend(attention_mask)
         train_label.extend(labels)
-    return train_sequence, train_attention_mask, train_label
+        train_conv_amount.extend(conv_amounts)
+    return train_sequence, train_attention_mask, train_label, train_conv_amount
 
 class Tokenizer(object):
     def __init__(self, config):
@@ -49,60 +51,67 @@ class Tokenizer(object):
             self.behavior_token = True
         self.sequence_generator = None
         
-    def tokenize(self, users, sequences, behaviors):
+    def tokenize(self, users, sequences, behaviors, conv_amounts):
         num_cores = 16
         user_chunks = custom_chunk(users, num_cores)
         sequence_chunks = custom_chunk(sequences, num_cores)
         behavior_chunks = custom_chunk(behaviors, num_cores)
+        conv_amount_chunks = custom_chunk(conv_amounts, num_cores)
 
         combined_sequences = []
         combined_masks = []
         combined_labels = []
+        combined_conv_amounts = []
         with ProcessPoolExecutor(max_workers=num_cores) as executor:
-            futures = [executor.submit(process_chunk, user_chunks[i], sequence_chunks[i], behavior_chunks[i], self.num_user_tokens, self.id_offsets, self.sequence_generator, behavior_token = self.behavior_token) for i in range(num_cores)]
+            futures = [executor.submit(process_chunk, user_chunks[i], sequence_chunks[i], behavior_chunks[i], conv_amount_chunks[i], self.num_user_tokens, self.id_offsets, self.sequence_generator, behavior_token=self.behavior_token) for i in range(num_cores)]
             for future in as_completed(futures):
                 combined_sequences.extend(future.result()[0])
                 combined_masks.extend(future.result()[1])
                 combined_labels.extend(future.result()[2])
+                combined_conv_amounts.extend(future.result()[3])
 
         return {
             'input_ids': torch.tensor(np.array(combined_sequences, dtype=np.int32), dtype=torch.int32),
             'attention_mask': torch.tensor(np.array(combined_masks, dtype=np.int8), dtype=torch.int8),
-            'labels': torch.tensor(np.array(combined_labels, dtype=np.int32), dtype=torch.int32)
+            'labels': torch.tensor(np.array(combined_labels, dtype=np.int32), dtype=torch.int32),
+            'conv_amount': torch.tensor(np.array(combined_conv_amounts, dtype=np.int32), dtype=torch.int32)
         }
 
-    def tokenize_evaluation(self, users, sequences, behaviors):
+    def tokenize_evaluation(self, users, sequences, behaviors, conv_amount_seq):
         eval_sequence = []
         eval_attention_mask = []
         eval_label = []
+        eval_conv_amounts = []
         if self.behavior_token:
             for i in tqdm(range(len(sequences))):
-                input_ids, attention_mask, labels = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i], behaviors[i])
+                input_ids, attention_mask, labels, conv_amounts = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i], conv_amount_seq[i], behaviors[i])
                 eval_sequence.append(input_ids)
                 eval_attention_mask.append(attention_mask)
                 eval_label.append(labels)
+                eval_conv_amounts.append(conv_amounts)
         else:
             for i in tqdm(range(len(sequences))):
-                input_ids, attention_mask, labels = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i])
+                input_ids, attention_mask, labels, conv_amounts = self.sequence_generator.generate_input_sequence(users[i]%self.num_user_tokens + self.id_offsets[-1], sequences[i], conv_amount_seq[i])
                 eval_sequence.append(input_ids)
                 eval_attention_mask.append(attention_mask)
                 eval_label.append(labels)
-        return {'input_ids': torch.tensor(np.array(eval_sequence), dtype=torch.long), 'attention_mask': torch.tensor(np.array(eval_attention_mask), dtype=torch.long), 'labels': torch.tensor(np.array(eval_label), dtype=torch.long)}
-    
+                eval_conv_amounts.append(conv_amounts)
+        return {'input_ids': torch.tensor(np.array(eval_sequence), dtype=torch.long), 'attention_mask': torch.tensor(np.array(eval_attention_mask), dtype=torch.long), 'labels': torch.tensor(np.array(eval_label), dtype=torch.long), 'conv_amount': torch.tensor(np.array(eval_conv_amounts), dtype=torch.int32)}
+
     def tokenize_from_file(self, path):
-        user, sequences, behaviors = read_tsv_data(path)
+        user, sequences, behaviors, conv_amount = read_tsv_data(path)
         # if os.path.exists(f"{path}_{self.config['tokenizer_type']}_exp{self.config['exp_id']}.pkl"):
         #     with open(f"{path}_{self.config['tokenizer_type']}_exp{self.config['exp_id']}.pkl", 'rb') as f:
         #         processed = pickle.load(f)
         #         return processed
-        processed = self.tokenize(user, sequences, behaviors)
+        processed = self.tokenize(user, sequences, behaviors, conv_amount)
         # with open(f"{path}_{self.config['tokenizer_type']}_exp{self.config['exp_id']}.pkl", 'wb') as f:
         #     pickle.dump(processed, f)
         return processed
     
     def tokenize_eval_from_file(self, path):
-        user, sequences, behaviors = read_tsv_data(path)
-        return self.tokenize_evaluation(user, sequences, behaviors)
+        user, sequences, behaviors, conv_amount = read_tsv_data(path)
+        return self.tokenize_evaluation(user, sequences, behaviors, conv_amount)
 
 def identity(x):
     return x
