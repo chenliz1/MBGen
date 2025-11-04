@@ -344,7 +344,7 @@ def read_tsv_data(file_path):
             user_id = int(row[0])
             item_id_list = list(map(int, row[1].split() + [row[2]]))
             behavior_list = list(map(int, map(float, row[3].split())))
-            conv_amount = list(map(int, row[4].split()))
+            conv_amount = list(map(float, row[4].split()))
 
             user_ids.append(user_id)
             sequences.append(item_id_list)
