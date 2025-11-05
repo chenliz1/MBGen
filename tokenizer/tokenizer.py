@@ -74,7 +74,7 @@ class Tokenizer(object):
             'input_ids': torch.tensor(np.array(combined_sequences, dtype=np.int32), dtype=torch.int32),
             'attention_mask': torch.tensor(np.array(combined_masks, dtype=np.int8), dtype=torch.int8),
             'labels': torch.tensor(np.array(combined_labels, dtype=np.int32), dtype=torch.int32),
-            'conv_amount': torch.tensor(np.array(combined_conv_amounts, dtype=np.int32), dtype=torch.int32)
+            'conv_amount': torch.tensor(np.array(combined_conv_amounts, dtype=np.float32), dtype=torch.float32)
         }
 
     def tokenize_evaluation(self, users, sequences, behaviors, conv_amount_seq):
@@ -96,7 +96,7 @@ class Tokenizer(object):
                 eval_attention_mask.append(attention_mask)
                 eval_label.append(labels)
                 eval_conv_amounts.append(conv_amounts)
-        return {'input_ids': torch.tensor(np.array(eval_sequence), dtype=torch.long), 'attention_mask': torch.tensor(np.array(eval_attention_mask), dtype=torch.long), 'labels': torch.tensor(np.array(eval_label), dtype=torch.long), 'conv_amount': torch.tensor(np.array(eval_conv_amounts), dtype=torch.int32)}
+        return {'input_ids': torch.tensor(np.array(eval_sequence), dtype=torch.long), 'attention_mask': torch.tensor(np.array(eval_attention_mask), dtype=torch.long), 'labels': torch.tensor(np.array(eval_label), dtype=torch.long), 'conv_amount': torch.tensor(np.array(eval_conv_amounts), dtype=torch.float32)}
 
     def tokenize_from_file(self, path):
         user, sequences, behaviors, conv_amount = read_tsv_data(path)

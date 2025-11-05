@@ -282,7 +282,7 @@ class SequenceGenerator(object):
                     input_ids.extend(new_item)
                 
         labels = np.array(labels + [self.EOS], dtype=np.int32)
-        conv_amount = np.array(conv_amount, dtype=np.int32)
+        conv_amount = np.array(conv_amount, dtype=np.float32)
         input_ids = np.array(self.pad_sequence(input_ids, self.max_sequence_length), dtype=np.int32)
         attention_mask = np.array(self.pad_sequence_attention(attention_mask, self.max_sequence_length), dtype=np.int8)
         return input_ids, attention_mask, labels, conv_amount

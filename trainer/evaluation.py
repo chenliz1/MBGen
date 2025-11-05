@@ -324,7 +324,7 @@ def evaluate(model, dataloader, device, item_len, num_beams=10, eval_mode = 'Tar
         input_ids = batch['input_ids'].to(device).to(torch.long)
         attention_mask = batch['attention_mask'].to(device).to(torch.long)
         labels = batch['labels'].to(device).to(torch.long)
-        conv_amount = batch['conv_amount'].to(device).to(torch.int32)
+        conv_amount = batch['conv_amount'].to(device).to(torch.float32)
         label_len = labels.shape[1]
         if behavior_token and (not reverse_bt):
             if eval_mode == 'Target':
