@@ -104,6 +104,12 @@ def start_training(config, training_data, validation_data, test_data, validation
     validation_all_dataset = CustomDataset(validation_all_data)
     test_dataset = CustomDataset(test_data)
     test_all_dataset = CustomDataset(test_all_data)
+    if 'test_only' in config.keys() and config['test_only']:
+        del(model)
+        torch.cuda.empty_cache()
+        gc.collect()
+        test_result = trainer.test(test_dataset, test_all_dataset)
+        return {'test_result': test_result}
     best_val = trainer.train(train_dataset, validation_dataset, validation_all_dataset)
     test_result = trainer.test(test_dataset, test_all_dataset)
     del(model)
@@ -149,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='./config/VQVAE_tokenizer/vqvae_embedding_noexpand.yaml', help='config file')
     parser.add_argument('--dataset', type=str, default='retail', help='dataset name')
     parser.add_argument('--device', type=str, nargs='+', default=['0'], help='device(s) to use for training. Default is 0. Multiple devices can be specified separated by spaces.')
+    parser.add_argument('--test', action='store_true', help='Run in test only mode')
     parser.add_argument("--tunning", action='store_true')
     parser.add_argument("--multiGPU", action='store_true')
     parser.add_argument('--tunning_config', type=str, default='./config/detached_tiger_tunning.yaml', help='hyperparameter tunning config file')
@@ -190,4 +197,8 @@ if __name__ == '__main__':
 
         manage_training(configs, args.device, training_data, validation_data, test_data, validation_data_all, test_data_all)
     else:
+        if args.test:
+            config['test_only'] = True
+        else:
+            config['test_only'] = False
         start_training(config, training_data, validation_data, test_data, validation_data_all, test_data_all, f'cuda:{args.device[0]}')
